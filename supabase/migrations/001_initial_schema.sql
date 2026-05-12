@@ -24,10 +24,11 @@ alter table profiles enable row level security;
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into profiles (id, email, role)
+  insert into profiles (id, email, full_name, role)
   values (
     new.id,
     new.email,
+    new.raw_user_meta_data->>'full_name',
     coalesce(new.raw_user_meta_data->>'role', 'student')::user_role
   );
   return new;
