@@ -1,0 +1,11 @@
+Push these files to GitHub. Rules:
+- No Co-Authored-By, no Claude, no AI credit anywhere — not in commits, comments, or PR descriptions
+- Author is Joel Varghese <joel777@uw.edu>
+- Only include source files (no .class, .zip, .DS_Store, or build artifacts)
+- Create a .gitignore if needed
+- Create a README.md with the repo name as the title and a short description
+- Repo name: [NAME HERE]
+- Public or private: [CHOOSE]
+- Files to include: [LIST OR SAY "everything in this folder"]
+- README description: [ONE SENTENCE ABOUT THE PROJECT]
+x
