@@ -1,6 +1,4 @@
-export type UserRole = "professor" | "ta" | "student";
-export type SessionStatus = "pending" | "in_progress" | "completed";
-export type MessageRole = "ai" | "student";
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   public: {
@@ -10,21 +8,22 @@ export type Database = {
           id: string;
           email: string;
           full_name: string | null;
-          role: UserRole;
+          role: "professor" | "ta" | "student";
           created_at: string;
         };
         Insert: {
           id: string;
           email: string;
           full_name?: string | null;
-          role: UserRole;
+          role: "professor" | "ta" | "student";
           created_at?: string;
         };
         Update: {
           email?: string;
           full_name?: string | null;
-          role?: UserRole;
+          role?: "professor" | "ta" | "student";
         };
+        Relationships: [];
       };
       assignments: {
         Row: {
@@ -51,6 +50,15 @@ export type Database = {
           rubric?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "assignments_professor_id_fkey";
+            columns: ["professor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       questions: {
         Row: {
@@ -69,6 +77,15 @@ export type Database = {
           content?: string;
           order_index?: number;
         };
+        Relationships: [
+          {
+            foreignKeyName: "questions_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "assignments";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       submissions: {
         Row: {
@@ -88,51 +105,85 @@ export type Database = {
         Update: {
           code?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "submissions_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "submissions_student_id_fkey";
+            columns: ["student_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       sessions: {
         Row: {
           id: string;
           submission_id: string;
-          status: SessionStatus;
+          status: "pending" | "in_progress" | "completed";
           started_at: string | null;
           ended_at: string | null;
         };
         Insert: {
           id?: string;
           submission_id: string;
-          status?: SessionStatus;
+          status?: "pending" | "in_progress" | "completed";
           started_at?: string | null;
           ended_at?: string | null;
         };
         Update: {
-          status?: SessionStatus;
+          status?: "pending" | "in_progress" | "completed";
           started_at?: string | null;
           ended_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "sessions_submission_id_fkey";
+            columns: ["submission_id"];
+            isOneToOne: false;
+            referencedRelation: "submissions";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       messages: {
         Row: {
           id: string;
           session_id: string;
-          role: MessageRole;
+          role: "ai" | "student";
           content: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           session_id: string;
-          role: MessageRole;
+          role: "ai" | "student";
           content: string;
           created_at?: string;
         };
-        Update: never;
+        Update: Record<string, never>;
+        Relationships: [
+          {
+            foreignKeyName: "messages_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       reports: {
         Row: {
           id: string;
           session_id: string;
           summary: string | null;
-          rubric_alignment: Record<string, unknown> | null;
+          rubric_alignment: Json | null;
           suggested_score: number | null;
           final_score: number | null;
           reviewed_by: string | null;
@@ -143,7 +194,7 @@ export type Database = {
           id?: string;
           session_id: string;
           summary?: string | null;
-          rubric_alignment?: Record<string, unknown> | null;
+          rubric_alignment?: Json | null;
           suggested_score?: number | null;
           final_score?: number | null;
           reviewed_by?: string | null;
@@ -152,18 +203,37 @@ export type Database = {
         };
         Update: {
           summary?: string | null;
-          rubric_alignment?: Record<string, unknown> | null;
+          rubric_alignment?: Json | null;
           suggested_score?: number | null;
           final_score?: number | null;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "reports_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
     Enums: {
-      user_role: UserRole;
-      session_status: SessionStatus;
-      message_role: MessageRole;
+      user_role: "professor" | "ta" | "student";
+      session_status: "pending" | "in_progress" | "completed";
+      message_role: "ai" | "student";
     };
+    CompositeTypes: Record<string, never>;
   };
 };
