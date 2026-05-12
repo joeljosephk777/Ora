@@ -134,16 +134,95 @@ Understanding this is key before building any feature:
 
 ---
 
+## Team & Task Assignments
+
+The project is split into three independent tracks. Each person works on their own branch and opens a PR to `main` when their feature is ready. **Do not touch other people's areas.**
+
+---
+
+### Joel — Auth + Professor Setup
+**Branch:** `joel`
+
+Build the foundation that Garv and Neil's work depends on.
+
+- Login / signup pages with role selection (professor or student)
+- Auth middleware to protect routes
+- Professor dashboard (`/professor/dashboard`)
+- Assignment creation form (`/professor/assignments/new`) — title, description, rubric, guiding questions
+- Assignment list + edit/delete
+
+**Pages to build:**
+```
+src/app/(auth)/login/page.tsx
+src/app/(auth)/signup/page.tsx
+src/app/(professor)/dashboard/page.tsx
+src/app/(professor)/assignments/new/page.tsx
+src/app/(professor)/assignments/[id]/edit/page.tsx
+src/middleware.ts
+```
+
+---
+
+### Garv — Student Session UI
+**Branch:** `garv`
+
+The student-facing flow: from receiving a link to completing the AI interview.
+
+- Student dashboard (list of assigned checks)
+- Code submission page (paste or upload code)
+- Live AI chat interface (the interview — send a message, get a response)
+- Session complete / thank you screen
+
+**Pages to build:**
+```
+src/app/(student)/dashboard/page.tsx
+src/app/(student)/session/[id]/page.tsx
+src/app/(student)/session/[id]/complete/page.tsx
+```
+
+**Note:** The chat UI calls an API route at `/api/chat` — Neil builds that route. Build the frontend to POST to it and display the response.
+
+---
+
+### Neil — AI Backend + Reports
+**Branch:** `neil`
+
+The AI engine and the reporting/grading interface.
+
+- `/api/chat` route — takes session ID + student message, calls Claude, returns AI response, saves both messages to DB
+- `/api/reports/generate` route — takes session ID, generates full report (summary, rubric alignment, strengths/weaknesses, suggested score), saves to DB
+- Professor report review page (read transcript, set final score)
+- TA report review page (same as professor view)
+
+**Files to build:**
+```
+src/app/api/chat/route.ts
+src/app/api/reports/generate/route.ts
+src/app/(professor)/assignments/[id]/reports/page.tsx
+src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
+```
+
+---
+
+### Branching rules
+
+- Branch off `main`, work on your branch, open a PR when done
+- PR needs at least one review before merging
+- Pull from `main` regularly to stay in sync: `git pull origin main`
+- Never commit directly to `main`
+
+---
+
 ## Milestone Roadmap
 
-| # | Milestone | Status |
-|---|-----------|--------|
-| 1 | Planning & Setup — repo, tech stack, DB schema | **Done** |
-| 2 | Professor Assignment Setup — create/edit assignments form | Next up |
-| 3 | Student Walkthrough MVP — code upload + AI interview UI | — |
-| 4 | AI Report Generation — transcript summary, rubric alignment, score | — |
-| 5 | Testing — QA with real CS assignments | — |
-| 6 | Final Deployment — Vercel, public site, presentation | — |
+| # | Milestone | Owner | Status |
+|---|-----------|-------|--------|
+| 1 | Planning & Setup — repo, tech stack, DB schema | All | **Done** |
+| 2 | Auth + Professor Assignment Setup | Joel | Next up |
+| 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv | — |
+| 4 | AI Report Generation — backend + grading UI | Neil | — |
+| 5 | Testing — QA with real CS assignments | All | — |
+| 6 | Final Deployment — Vercel, public site, presentation | All | — |
 
 ---
 
