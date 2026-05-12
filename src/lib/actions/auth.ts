@@ -17,7 +17,7 @@ export async function signIn(prevState: AuthState, formData: FormData): Promise<
 
   const { data: { user } } = await supabase.auth.getUser();
   const role = user?.user_metadata?.role as string | undefined;
-  redirect(role === "professor" || role === "ta" ? "/professor/dashboard" : "/student/dashboard");
+  redirect(role === "student" ? "/student/dashboard" : "/professor/dashboard");
 }
 
 export async function signUp(prevState: AuthState, formData: FormData): Promise<AuthState> {
@@ -37,7 +37,7 @@ export async function signUp(prevState: AuthState, formData: FormData): Promise<
 
   if (error) return { error: error.message };
 
-  redirect(role === "professor" || role === "ta" ? "/professor/dashboard" : "/student/dashboard");
+  redirect(role === "student" ? "/student/dashboard" : "/professor/dashboard");
 }
 
 export async function signOut() {

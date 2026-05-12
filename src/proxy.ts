@@ -31,18 +31,18 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const role = user?.user_metadata?.role as string | undefined;
-  const isProfessor = role === "professor" || role === "ta";
+  const isStudent = role === "student";
 
   // Redirect authenticated users away from auth pages
   if (user && (path === "/login" || path === "/signup")) {
-    const dest = isProfessor ? "/professor/dashboard" : "/student/dashboard";
+    const dest = isStudent ? "/student/dashboard" : "/professor/dashboard";
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
-  // Protect professor routes
+  // Protect professor routes — allow if logged in and not explicitly a student
   if (path.startsWith("/professor")) {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
-    if (!isProfessor) return NextResponse.redirect(new URL("/login", request.url));
+    if (isStudent) return NextResponse.redirect(new URL("/login", request.url));
   }
 
   // Protect student routes
@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
   // Root redirect
   if (path === "/") {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
-    const dest = isProfessor ? "/professor/dashboard" : "/student/dashboard";
+    const dest = isStudent ? "/student/dashboard" : "/professor/dashboard";
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
