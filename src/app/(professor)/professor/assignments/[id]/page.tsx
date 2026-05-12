@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { deleteAssignment } from "@/lib/actions/assignments";
+import DeleteButton from "@/components/DeleteButton";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -55,17 +56,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
           >
             Edit
           </Link>
-          <form action={deleteWithId}>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-              onClick={(e) => {
-                if (!confirm("Delete this assignment? This cannot be undone.")) e.preventDefault();
-              }}
-            >
-              Delete
-            </button>
-          </form>
+          <DeleteButton action={deleteWithId} />
         </div>
       </div>
 
