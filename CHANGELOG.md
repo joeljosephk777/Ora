@@ -6,7 +6,7 @@ Track what each person ships. Add a line when you merge something.
 
 ## Caffeine Consumed
 
-| Name  | Coffees | Red Bulls | Total |
+| Name  | Coffees | Energy Drinks | Total |
 |-------|---------|-----------|-------|
 | Joel  | 1       | 1         | 2     |
 | Garv  | 0       | 0         | 0     |
