@@ -4,6 +4,16 @@ Track what each person ships. Add a line when you merge something.
 
 ---
 
+## Caffeine Consumed
+
+| Name  | Coffees | Red Bulls | Total |
+|-------|---------|-----------|-------|
+| Joel  | 1       | 1         | 2     |
+| Garv  | 0       | 0         | 0     |
+| Neil  | 0       | 0         | 0     |
+
+---
+
 ## 2026-05-12
 
 - **Joel** — Initialized Next.js app with Supabase schema, DB migrations, and project docs
