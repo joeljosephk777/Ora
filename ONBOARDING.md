@@ -258,6 +258,19 @@ src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
 
 ---
 
+## Changelog
+
+We keep a `CHANGELOG.md` in the repo root. When you merge something, add one line:
+
+```
+## YYYY-MM-DD
+- **Your name** — what you shipped
+```
+
+It takes 30 seconds and gives everyone a plain-English view of progress — useful for the final presentation too.
+
+---
+
 ## Questions?
 
 Open an issue on GitHub or reach out to Joel.
