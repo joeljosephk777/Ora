@@ -269,6 +269,8 @@ We keep a `CHANGELOG.md` in the repo root. When you merge something, add one lin
 
 It takes 30 seconds and gives everyone a plain-English view of progress — useful for the final presentation too.
 
+Also update the **Caffeine Consumed** table at the top of `CHANGELOG.md` with your coffees and Red Bulls. Just for fun.
+
 ---
 
 ## Questions?
