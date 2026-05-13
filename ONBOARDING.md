@@ -59,20 +59,38 @@ App runs at [http://localhost:3000](http://localhost:3000)
 ```
 Ora/
 ├── src/
-│   ├── app/                  # Next.js App Router pages
+│   ├── app/
+│   │   ├── (auth)/           # Login/signup pages (no URL prefix)
+│   │   │   ├── login/page.tsx
+│   │   │   └── signup/page.tsx
+│   │   ├── (professor)/      # Professor routes under /professor/*
+│   │   │   └── professor/
+│   │   │       ├── dashboard/page.tsx
+│   │   │       └── assignments/
+│   │   │           ├── new/page.tsx
+│   │   │           └── [id]/
+│   │   │               ├── page.tsx
+│   │   │               └── edit/page.tsx
 │   │   ├── layout.tsx
 │   │   └── page.tsx
-│   ├── components/           # Shared UI components
+│   ├── components/
+│   │   ├── AssignmentForm.tsx   # Create/edit form with dynamic questions
+│   │   └── DeleteButton.tsx     # Client component for confirm-then-delete
 │   ├── lib/
+│   │   ├── actions/
+│   │   │   ├── auth.ts          # signIn, signUp, signOut server actions
+│   │   │   └── assignments.ts   # createAssignment, updateAssignment, deleteAssignment
 │   │   ├── supabase/
-│   │   │   ├── client.ts     # Browser Supabase client
-│   │   │   └── server.ts     # Server Supabase client (uses cookies)
-│   │   └── anthropic.ts      # Anthropic client singleton
+│   │   │   ├── client.ts        # Browser Supabase client
+│   │   │   └── server.ts        # Server Supabase client (reads auth from cookies)
+│   │   └── anthropic.ts         # Anthropic client singleton
+│   ├── proxy.ts                 # Route protection middleware (Next.js 16)
 │   └── types/
-│       └── database.ts       # TypeScript types for all DB tables
+│       └── database.ts          # TypeScript types for all DB tables
 ├── supabase/
-│   └── migrations/
-│       └── 001_initial_schema.sql   # Full DB schema + RLS policies
+│   ├── migrations/
+│   │   └── 001_initial_schema.sql   # Full DB schema + RLS policies
+│   └── reset.sql                    # Wipes all tables/enums — run before re-migrating
 ├── .env.example              # Env template (safe to commit)
 ├── .env.local                # Your secrets (gitignored — never commit this)
 ├── CLAUDE.md                 # Context for AI coding assistants
@@ -151,14 +169,19 @@ Build the foundation that Garv and Neil's work depends on.
 - Assignment creation form (`/professor/assignments/new`) — title, description, rubric, guiding questions
 - Assignment list + edit/delete
 
-**Pages to build:**
+**Pages built:**
 ```
 src/app/(auth)/login/page.tsx
 src/app/(auth)/signup/page.tsx
-src/app/(professor)/dashboard/page.tsx
-src/app/(professor)/assignments/new/page.tsx
-src/app/(professor)/assignments/[id]/edit/page.tsx
-src/middleware.ts
+src/app/(professor)/professor/dashboard/page.tsx
+src/app/(professor)/professor/assignments/new/page.tsx
+src/app/(professor)/professor/assignments/[id]/page.tsx
+src/app/(professor)/professor/assignments/[id]/edit/page.tsx
+src/components/AssignmentForm.tsx
+src/components/DeleteButton.tsx
+src/lib/actions/auth.ts
+src/lib/actions/assignments.ts
+src/proxy.ts
 ```
 
 ---
@@ -218,7 +241,7 @@ src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
 | # | Milestone | Owner | Status |
 |---|-----------|-------|--------|
 | 1 | Planning & Setup — repo, tech stack, DB schema | All | **Done** |
-| 2 | Auth + Professor Assignment Setup | Joel | Next up |
+| 2 | Auth + Professor Assignment Setup | Joel | **Done** |
 | 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv | — |
 | 4 | AI Report Generation — backend + grading UI | Neil | — |
 | 5 | Testing — QA with real CS assignments | All | — |
