@@ -259,7 +259,7 @@ src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
 |---|-----------|-------|--------|
 | 1 | Planning & Setup — repo, tech stack, DB schema | All | **Done** |
 | 2 | Auth + Professor Assignment Setup | Joel | **Done** |
-| 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv | — |
+| 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv | **Done** |
 | 4 | AI Report Generation — backend + grading UI | Neil | — |
 | 5 | Testing — QA with real CS assignments | All | — |
 | 6 | Final Deployment — Vercel, public site, presentation | All | — |
