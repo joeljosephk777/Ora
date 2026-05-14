@@ -192,9 +192,20 @@ src/proxy.ts
 The student-facing flow: from receiving a link to completing the AI interview.
 
 - Student dashboard (list of assigned checks)
-- Code submission page (paste or upload code)
-- Live AI chat interface (the interview — send a message, get a response)
+  - Fetch and display the student's available comprehension checks
+  - Show status for each check (not started, in progress, completed)
+  - Add entry points to start a new session or resume an existing one
+- Live AI chat interface
+  - Build the text-chat UI for the Ora AI comprehension interview
+  - Send student replies to `/api/chat` and render Ora's response in the transcript
+  - Load and display prior chat messages for an in-progress session
+  - Allow students to paste code snippets directly into the chat
+  - Add an annotation flow where a student can attach a voiceover recording to a pasted code snippet
+  - Show recording, attached-snippet, loading, and retry/error states in the UI
 - Session complete / thank you screen
+  - Mark the session as completed
+  - Show a confirmation screen after the interview is finished
+  - Provide a clear next-step message so students know what happens after submission
 
 **Pages to build:**
 ```
@@ -203,7 +214,13 @@ src/app/(student)/session/[id]/page.tsx
 src/app/(student)/session/[id]/complete/page.tsx
 ```
 
-**Note:** The chat UI calls an API route at `/api/chat` — Neil builds that route. Build the frontend to POST to it and display the response.
+**Future module (not MVP):** Code submission page
+- Create a dedicated page for submitting code before the interview begins
+- Support paste-in code and local file upload
+- Save the student's code submission to the linked assignment/session flow
+- Validate that code is present before continuing to the interview
+
+**Note:** The chat UI calls an API route at `/api/chat` — Neil builds that route. Build the frontend to POST to it and display the response. The MVP chat should be structured so code-snippet attachments and voiceover annotations can later connect to backend support for storing recordings and snippet metadata.
 
 ---
 
