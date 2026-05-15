@@ -5,13 +5,15 @@ import Link from "next/link";
 export default async function ProfessorLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const name = user?.user_metadata?.full_name ?? user?.email ?? "Professor";
+  const role = user?.user_metadata?.role as string | undefined;
+  const name = user?.user_metadata?.full_name ?? user?.email ?? (role === "ta" ? "TA" : "Professor");
+  const homeHref = role === "ta" ? "/ta/dashboard" : "/professor/dashboard";
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/professor/dashboard" className="text-lg font-bold text-gray-900">
+          <Link href={homeHref} className="text-lg font-bold text-gray-900">
             Ora
           </Link>
           <div className="flex items-center gap-4">

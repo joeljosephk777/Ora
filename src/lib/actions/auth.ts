@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 
 type AuthState = { error?: string } | null;
 
+function getHomePathForRole(role: string | undefined) {
+  if (role === "student") return "/student/dashboard";
+  if (role === "ta") return "/ta/dashboard";
+  return "/professor/dashboard";
+}
+
 export async function signIn(prevState: AuthState, formData: FormData): Promise<AuthState> {
   const supabase = await createClient();
 
@@ -17,7 +23,7 @@ export async function signIn(prevState: AuthState, formData: FormData): Promise<
 
   const { data: { user } } = await supabase.auth.getUser();
   const role = user?.user_metadata?.role as string | undefined;
-  redirect(role === "student" ? "/student/dashboard" : "/professor/dashboard");
+  redirect(getHomePathForRole(role));
 }
 
 export async function signUp(prevState: AuthState, formData: FormData): Promise<AuthState> {
@@ -37,7 +43,7 @@ export async function signUp(prevState: AuthState, formData: FormData): Promise<
 
   if (error) return { error: error.message };
 
-  redirect(role === "student" ? "/student/dashboard" : "/professor/dashboard");
+  redirect(getHomePathForRole(role));
 }
 
 export async function signOut() {
