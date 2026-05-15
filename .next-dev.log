@@ -1,0 +1,30 @@
+
+> ora@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 446ms
+Creating turbopack project {
+  dir: 'C:\\Users\\neilc\\Spring2026\\IntroToAi\\Ora\\Ora',
+  testMode: true
+}
+
+ GET /professor/dashboard 200 in 1150ms (next.js: 137ms, proxy.ts: 128ms, application-code: 884ms)
+ GET /professor/assignments/new 200 in 719ms (next.js: 46ms, proxy.ts: 652ms, application-code: 21ms)
+ GET /professor/dashboard 200 in 843ms (next.js: 6ms, proxy.ts: 116ms, application-code: 722ms)
+ POST /professor/assignments/new 303 in 1779ms (next.js: 11ms, proxy.ts: 229ms, application-code: 1538ms)
+  └─ ƒ createAssignment(null, {}) in 655ms src/lib/actions/assignments.ts
+ GET /login 200 in 97ms (next.js: 58ms, proxy.ts: 14ms, application-code: 25ms)
+ POST /professor/dashboard 303 in 515ms (next.js: 10ms, proxy.ts: 207ms, application-code: 298ms)
+  └─ ƒ signOut() in 156ms src/lib/actions/auth.ts
+ GET /student/dashboard 200 in 627ms (next.js: 47ms, proxy.ts: 106ms, application-code: 474ms)
+ POST /login 303 in 1142ms (next.js: 7ms, proxy.ts: 11ms, application-code: 1124ms)
+  └─ ƒ signIn(null, {}) in 482ms src/lib/actions/auth.ts
+ GET /student/session/9cb39799-638d-47ed-befb-7238bd7752cb 200 in 1414ms (next.js: 483ms, proxy.ts: 117ms, application-code: 814ms)
+ POST /student/dashboard 303 in 2.1s (next.js: 6ms, proxy.ts: 134ms, application-code: 1916ms)
+  └─ ƒ startSession("40ecaec3-7153-4b53-a2f3-86b1ff8d2c72") in 483ms src/lib/actions/studentSessions.ts
+ POST /api/transcribe 200 in 1720ms (next.js: 696ms, proxy.ts: 215ms, application-code: 809ms)
+ POST /api/transcribe 200 in 955ms (next.js: 8ms, proxy.ts: 215ms, application-code: 733ms)
