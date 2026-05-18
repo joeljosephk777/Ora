@@ -2,8 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import Link from "next/link";
-import { signIn } from "@/lib/actions/auth";
+import { updatePassword } from "@/lib/actions/auth";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -13,17 +12,20 @@ function SubmitButton() {
       disabled={pending}
       className="w-full py-2 px-4 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
     >
-      {pending ? "Signing in..." : "Sign in"}
+      {pending ? "Updating..." : "Update password"}
     </button>
   );
 }
 
-export default function LoginPage() {
-  const [state, action] = useActionState(signIn, null);
+export default function ResetPasswordPage() {
+  const [state, action] = useActionState(updatePassword, null);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Sign in to your account</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-2">Choose a new password</h2>
+      <p className="text-sm text-gray-600 mb-6">
+        Pick something you&apos;ll remember. Minimum 6 characters.
+      </p>
 
       {state?.error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -33,40 +35,34 @@ export default function LoginPage() {
 
       <form action={action} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link href="/forgot-password" className="text-xs text-indigo-600 hover:underline font-medium">
-              Forgot password?
-            </Link>
-          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
           <input
             name="password"
             type="password"
             required
-            autoComplete="current-password"
+            minLength={6}
+            autoComplete="new-password"
+            placeholder="At least 6 characters"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
         </div>
-
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label>
+          <input
+            name="confirm"
+            type="password"
+            required
+            minLength={6}
+            autoComplete="new-password"
+            placeholder="Re-enter your new password"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+        </div>
         <SubmitButton />
       </form>
 
-      <p className="mt-4 text-center text-sm text-gray-600">
-        Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-indigo-600 hover:underline font-medium">
-          Sign up
-        </Link>
+      <p className="mt-6 text-xs text-gray-500 text-center">
+        Once you save, you&apos;ll be signed in automatically.
       </p>
     </div>
   );

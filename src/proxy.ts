@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
   const role = user?.user_metadata?.role as string | undefined;
   const isStudent = role === "student";
 
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated users away from login/signup (forgot-password and reset-password remain accessible since users may follow an email link while still signed in).
   if (user && (path === "/login" || path === "/signup")) {
     const dest = isStudent ? "/student/dashboard" : "/professor/dashboard";
     return NextResponse.redirect(new URL(dest, request.url));
@@ -50,9 +50,8 @@ export async function proxy(request: NextRequest) {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Root redirect
-  if (path === "/") {
-    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+  // Authenticated users skip the landing and go straight to their dashboard. Unauthenticated visitors see the landing page.
+  if (path === "/" && user) {
     const dest = isStudent ? "/student/dashboard" : "/professor/dashboard";
     return NextResponse.redirect(new URL(dest, request.url));
   }
