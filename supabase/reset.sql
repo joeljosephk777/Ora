@@ -3,6 +3,8 @@
 
 drop policy if exists "profiles: own row" on profiles;
 drop policy if exists "profiles: update own" on profiles;
+drop policy if exists "profiles: professor read assignment students" on profiles;
+drop policy if exists "profiles: ta read all" on profiles;
 drop policy if exists "assignments: professor crud" on assignments;
 drop policy if exists "assignments: student read" on assignments;
 drop policy if exists "questions: professor crud" on questions;

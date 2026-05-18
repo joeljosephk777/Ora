@@ -50,6 +50,12 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
         </div>
         <div className="flex gap-3">
           <Link
+            href={`/professor/assignments/${id}/reports`}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Reports
+          </Link>
+          <Link
             href={`/professor/assignments/${id}/edit`}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >

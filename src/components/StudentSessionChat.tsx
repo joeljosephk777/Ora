@@ -14,6 +14,7 @@ type RecordingAttachment = {
   url: string;
   durationMs: number;
   mimeType: string;
+  file: File;
 };
 
 type ChatMessage = InitialChatMessage & {
@@ -27,6 +28,7 @@ type PendingPayload = {
   message: string;
   snippet: string;
   recording: RecordingAttachment | null;
+  transcribedMessage: string | null;
 };
 
 type Props = {
@@ -49,8 +51,10 @@ function extractResponseMessage(payload: unknown) {
 
   const record = payload as Record<string, unknown>;
 
+  if (typeof record.text === "string") return record.text;
   if (typeof record.reply === "string") return record.reply;
   if (typeof record.message === "string") return record.message;
+  if (typeof record.transcript === "string") return record.transcript;
   if (typeof record.content === "string") return record.content;
   if (typeof record.aiResponse === "string") return record.aiResponse;
   if (typeof record.response === "string") return record.response;
@@ -63,8 +67,14 @@ function extractResponseMessage(payload: unknown) {
   return null;
 }
 
-function getDisplayContent(message: string, attachedSnippet: string) {
+function getVoiceTranscriptLabel(transcript: string) {
+  return `Voice note transcript:\n${transcript}`;
+}
+
+function buildDisplayContent(message: string, attachedSnippet: string, transcribedMessage: string | null) {
+  if (message && transcribedMessage) return `${message}\n\n${getVoiceTranscriptLabel(transcribedMessage)}`;
   if (message) return message;
+  if (transcribedMessage) return getVoiceTranscriptLabel(transcribedMessage);
   if (attachedSnippet) return "Shared a code snippet.";
   return "";
 }
@@ -123,6 +133,41 @@ export default function StudentSessionChat({
     if (!updateError) setStatus("in_progress");
   }
 
+  async function transcribeRecording(attachment: RecordingAttachment) {
+    const formData = new FormData();
+    formData.append("file", attachment.file, attachment.file.name);
+
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      body: formData,
+    });
+
+    const responseBody = await response.text();
+    let parsedBody: unknown = null;
+    if (responseBody) {
+      try {
+        parsedBody = JSON.parse(responseBody);
+      } catch {
+        parsedBody = responseBody;
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        extractResponseMessage(parsedBody) ??
+          (response.status === 404 ? "Transcription API is not available yet." : "Failed to transcribe audio.")
+      );
+    }
+
+    const transcript = extractResponseMessage(parsedBody);
+
+    if (!transcript) {
+      throw new Error("Transcription response did not include any text.");
+    }
+
+    return transcript;
+  }
+
   async function sendMessage(payload?: PendingPayload) {
     const optimisticId = payload?.messageId ?? `local-${Date.now()}`;
     const nextPayload = payload ?? {
@@ -130,16 +175,13 @@ export default function StudentSessionChat({
       message: draft.trim(),
       snippet: snippet.trim(),
       recording,
+      transcribedMessage: null,
     };
 
-    if (!nextPayload.message && !nextPayload.snippet) return;
+    if (!nextPayload.message && !nextPayload.snippet && !nextPayload.recording) return;
 
     setIsSending(true);
     setError(null);
-
-    const composedContent = nextPayload.snippet
-      ? [nextPayload.message, `\`\`\`\n${nextPayload.snippet}\n\`\`\``].filter(Boolean).join("\n\n")
-      : nextPayload.message;
 
     if (!payload) {
       setMessages((current) => [
@@ -147,7 +189,11 @@ export default function StudentSessionChat({
         {
           id: optimisticId,
           role: "student",
-          content: getDisplayContent(nextPayload.message, nextPayload.snippet),
+          content: buildDisplayContent(
+            nextPayload.message,
+            nextPayload.snippet,
+            nextPayload.transcribedMessage
+          ) || (nextPayload.recording ? "Voice note ready to transcribe." : "Sending..."),
           createdAt: new Date().toISOString(),
           snippet: nextPayload.snippet || undefined,
           recording: nextPayload.recording,
@@ -156,8 +202,32 @@ export default function StudentSessionChat({
       ]);
     }
 
+    let transcribedMessage = nextPayload.transcribedMessage;
+
     try {
       await markSessionInProgress();
+
+      if (!transcribedMessage && nextPayload.recording) {
+        transcribedMessage = await transcribeRecording(nextPayload.recording);
+      }
+
+      const composedMessage = [nextPayload.message, transcribedMessage ? getVoiceTranscriptLabel(transcribedMessage) : ""]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const composedContent = nextPayload.snippet
+        ? [composedMessage, `\`\`\`\n${nextPayload.snippet}\n\`\`\``].filter(Boolean).join("\n\n")
+        : composedMessage;
+
+      if (!composedContent) {
+        throw new Error("Add a typed response, code snippet, or voice note before sending.");
+      }
+
+      const displayContent = buildDisplayContent(
+        nextPayload.message,
+        nextPayload.snippet,
+        transcribedMessage
+      );
 
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -201,7 +271,15 @@ export default function StudentSessionChat({
       }
 
       setMessages((current) => [
-        ...current.map((message) => (message.id === optimisticId ? { ...message, pending: false } : message)),
+        ...current.map((message) =>
+          message.id === optimisticId
+            ? {
+                ...message,
+                pending: false,
+                content: displayContent,
+              }
+            : message
+        ),
         {
           id: `ai-${Date.now()}`,
           role: "ai",
@@ -223,10 +301,27 @@ export default function StudentSessionChat({
       }
       setLastFailedPayload(null);
     } catch (sendError) {
-      setLastFailedPayload(nextPayload);
+      setLastFailedPayload({
+        ...nextPayload,
+        transcribedMessage,
+      });
       setError(sendError instanceof Error ? sendError.message : "Failed to send message.");
       setMessages((current) =>
-        payload ? current : current.map((message) => (message.id === optimisticId ? { ...message, pending: false } : message))
+        payload
+          ? current
+          : current.map((message) =>
+              message.id === optimisticId
+                ? {
+                    ...message,
+                    pending: false,
+                    content: buildDisplayContent(
+                      nextPayload.message,
+                      nextPayload.snippet,
+                      transcribedMessage
+                    ) || message.content,
+                  }
+                : message
+            )
       );
     } finally {
       setIsSending(false);
@@ -258,11 +353,16 @@ export default function StudentSessionChat({
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         const durationMs = Date.now() - recordingStartRef.current;
         const nextUrl = URL.createObjectURL(blob);
+        const extension = (recorder.mimeType || "audio/webm").includes("mpeg") ? "mp3" : "webm";
+        const file = new File([blob], `voice-annotation-${Date.now()}.${extension}`, {
+          type: recorder.mimeType || "audio/webm",
+        });
         objectUrlsRef.current.push(nextUrl);
         setRecording({
           url: nextUrl,
           durationMs,
           mimeType: recorder.mimeType || "audio/webm",
+          file,
         });
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -287,7 +387,7 @@ export default function StudentSessionChat({
     setRecording(null);
   }
 
-  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || snippet.trim());
+  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || snippet.trim() || recording);
 
   return (
     <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden min-h-[720px] flex flex-col">
@@ -445,7 +545,9 @@ export default function StudentSessionChat({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-gray-700">Voice annotation</p>
-                <p className="text-xs text-gray-500">{getRecordingTimeLabel(recording.durationMs)}</p>
+                <p className="text-xs text-gray-500">
+                  {getRecordingTimeLabel(recording.durationMs)} · transcribed on send
+                </p>
               </div>
             </div>
             <audio className="mt-3 w-full" controls src={recording.url} />
