@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { deleteAssignment } from "@/lib/actions/assignments";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import DeleteButton from "@/components/DeleteButton";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -39,17 +40,15 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
 
   return (
     <div>
+      <Breadcrumbs items={[{ label: "Dashboard", href: "/professor/dashboard" }, { label: assignment.title }]} />
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Link href="/professor/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Back to dashboard
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">{assignment.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{assignment.title}</h1>
           <p className="text-xs text-gray-400 mt-1">
             Created {new Date(assignment.created_at).toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3">
           <Link
             href={`/professor/assignments/${id}/edit`}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

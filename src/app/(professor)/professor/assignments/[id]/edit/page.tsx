@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { updateAssignment } from "@/lib/actions/assignments";
 import AssignmentForm from "@/components/AssignmentForm";
-import Link from "next/link";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { notFound, redirect } from "next/navigation";
 
 type AssignmentFields = { title: string; description: string; rubric: string };
@@ -32,12 +32,14 @@ export default async function EditAssignmentPage({ params }: { params: Promise<{
 
   return (
     <div>
-      <div className="mb-6">
-        <Link href={`/professor/assignments/${id}`} className="text-sm text-gray-500 hover:text-gray-700">
-          ← Back to assignment
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Edit assignment</h1>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: "/professor/dashboard" },
+          { label: assignment.title, href: `/professor/assignments/${id}` },
+          { label: "Edit" },
+        ]}
+      />
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Edit assignment</h1>
       <div className="bg-white border border-gray-200 rounded-xl p-8">
         <AssignmentForm
           action={action}
