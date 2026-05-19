@@ -18,7 +18,6 @@ type RecordingAttachment = {
 };
 
 type ChatMessage = InitialChatMessage & {
-  snippet?: string;
   recording?: RecordingAttachment | null;
   pending?: boolean;
 };
@@ -26,9 +25,14 @@ type ChatMessage = InitialChatMessage & {
 type PendingPayload = {
   messageId: string;
   message: string;
-  snippet: string;
   recording: RecordingAttachment | null;
   transcribedMessage: string | null;
+  editTarget: EditTarget | null;
+};
+
+type EditTarget = {
+  studentMessageId: string;
+  aiMessageId: string | null;
 };
 
 type Props = {
@@ -71,12 +75,51 @@ function getVoiceTranscriptLabel(transcript: string) {
   return `Voice note transcript:\n${transcript}`;
 }
 
-function buildDisplayContent(message: string, attachedSnippet: string, transcribedMessage: string | null) {
+function stripVoiceTranscript(content: string) {
+  const marker = "\n\nVoice note transcript:\n";
+  const markerIndex = content.lastIndexOf(marker);
+
+  if (markerIndex !== -1) {
+    return content.slice(0, markerIndex).trim();
+  }
+
+  if (content.startsWith("Voice note transcript:\n")) {
+    return "";
+  }
+
+  return content;
+}
+
+function buildDisplayContent(message: string, transcribedMessage: string | null) {
   if (message && transcribedMessage) return `${message}\n\n${getVoiceTranscriptLabel(transcribedMessage)}`;
   if (message) return message;
   if (transcribedMessage) return getVoiceTranscriptLabel(transcribedMessage);
-  if (attachedSnippet) return "Shared a code snippet.";
   return "";
+}
+
+function splitMessageContent(content: string) {
+  const segments: Array<{ type: "text" | "code"; value: string }> = [];
+  const pattern = /```(?:([\w-]+)\n)?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      const textSegment = content.slice(lastIndex, match.index).trim();
+      if (textSegment) segments.push({ type: "text", value: textSegment });
+    }
+
+    const codeSegment = match[2]?.trim();
+    if (codeSegment) segments.push({ type: "code", value: codeSegment });
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    const trailingText = content.slice(lastIndex).trim();
+    if (trailingText) segments.push({ type: "text", value: trailingText });
+  }
+
+  return segments.length > 0 ? segments : [{ type: "text" as const, value: content }];
 }
 
 export default function StudentSessionChat({
@@ -89,12 +132,11 @@ export default function StudentSessionChat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState(initialStatus);
   const [draft, setDraft] = useState("");
-  const [snippet, setSnippet] = useState("");
-  const [snippetOpen, setSnippetOpen] = useState(false);
   const [recording, setRecording] = useState<RecordingAttachment | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedPayload, setLastFailedPayload] = useState<PendingPayload | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingBlocked, setRecordingBlocked] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -103,6 +145,7 @@ export default function StudentSessionChat({
   const recordingStartRef = useRef<number>(0);
   const audioChunksRef = useRef<Blob[]>([]);
   const objectUrlsRef = useRef<string[]>([]);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({
@@ -155,7 +198,7 @@ export default function StudentSessionChat({
     if (!response.ok) {
       throw new Error(
         extractResponseMessage(parsedBody) ??
-          (response.status === 404 ? "Transcription API is not available yet." : "Failed to transcribe audio.")
+        (response.status === 404 ? "Transcription API is not available yet." : "Failed to transcribe audio.")
       );
     }
 
@@ -173,33 +216,42 @@ export default function StudentSessionChat({
     const nextPayload = payload ?? {
       messageId: optimisticId,
       message: draft.trim(),
-      snippet: snippet.trim(),
       recording,
       transcribedMessage: null,
+      editTarget,
     };
 
-    if (!nextPayload.message && !nextPayload.snippet && !nextPayload.recording) return;
+    if (!nextPayload.message && !nextPayload.recording) return;
 
     setIsSending(true);
     setError(null);
 
     if (!payload) {
-      setMessages((current) => [
-        ...current,
-        {
-          id: optimisticId,
-          role: "student",
-          content: buildDisplayContent(
-            nextPayload.message,
-            nextPayload.snippet,
-            nextPayload.transcribedMessage
-          ) || (nextPayload.recording ? "Voice note ready to transcribe." : "Sending..."),
-          createdAt: new Date().toISOString(),
-          snippet: nextPayload.snippet || undefined,
-          recording: nextPayload.recording,
-          pending: true,
-        },
-      ]);
+      const nextTarget = nextPayload.editTarget;
+      setDraft("");
+      setRecording(null);
+      setEditTarget(null);
+      setMessages((current) => {
+        const pruned = nextTarget
+          ? current.filter(
+            (message) =>
+              message.id !== nextTarget.studentMessageId && message.id !== nextTarget.aiMessageId
+          )
+          : current;
+
+        return [
+          ...pruned,
+          {
+            id: optimisticId,
+            role: "student",
+            content: buildDisplayContent(nextPayload.message, nextPayload.transcribedMessage) ||
+              (nextPayload.recording ? "Voice note ready to transcribe." : "Sending..."),
+            createdAt: new Date().toISOString(),
+            recording: nextPayload.recording,
+            pending: true,
+          },
+        ];
+      });
     }
 
     let transcribedMessage = nextPayload.transcribedMessage;
@@ -215,19 +267,11 @@ export default function StudentSessionChat({
         .filter(Boolean)
         .join("\n\n");
 
-      const composedContent = nextPayload.snippet
-        ? [composedMessage, `\`\`\`\n${nextPayload.snippet}\n\`\`\``].filter(Boolean).join("\n\n")
-        : composedMessage;
-
-      if (!composedContent) {
+      if (!composedMessage) {
         throw new Error("Add a typed response, code snippet, or voice note before sending.");
       }
 
-      const displayContent = buildDisplayContent(
-        nextPayload.message,
-        nextPayload.snippet,
-        transcribedMessage
-      );
+      const displayContent = buildDisplayContent(nextPayload.message, transcribedMessage);
 
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -236,13 +280,13 @@ export default function StudentSessionChat({
         },
         body: JSON.stringify({
           sessionId,
-          message: composedContent || nextPayload.message,
-          codeSnippet: nextPayload.snippet || null,
+          message: composedMessage,
+          codeSnippet: null,
           voiceAnnotation: nextPayload.recording
             ? {
-                durationMs: nextPayload.recording.durationMs,
-                mimeType: nextPayload.recording.mimeType,
-              }
+              durationMs: nextPayload.recording.durationMs,
+              mimeType: nextPayload.recording.mimeType,
+            }
             : null,
         }),
       });
@@ -260,7 +304,7 @@ export default function StudentSessionChat({
       if (!response.ok) {
         throw new Error(
           extractResponseMessage(parsedBody) ??
-            (response.status === 404 ? "Chat API is not available yet." : "Failed to send message.")
+          (response.status === 404 ? "Chat API is not available yet." : "Failed to send message.")
         );
       }
 
@@ -274,10 +318,10 @@ export default function StudentSessionChat({
         ...current.map((message) =>
           message.id === optimisticId
             ? {
-                ...message,
-                pending: false,
-                content: displayContent,
-              }
+              ...message,
+              pending: false,
+              content: displayContent,
+            }
             : message
         ),
         {
@@ -289,14 +333,13 @@ export default function StudentSessionChat({
       ]);
 
       if (
-        !payload ||
-        (draft.trim() === nextPayload.message &&
-          snippet.trim() === nextPayload.snippet &&
-          recording?.url === nextPayload.recording?.url)
+        payload &&
+        (
+          draft.trim() === nextPayload.message &&
+          recording?.url === nextPayload.recording?.url
+        )
       ) {
         setDraft("");
-        setSnippet("");
-        setSnippetOpen(false);
         setRecording(null);
       }
       setLastFailedPayload(null);
@@ -310,18 +353,17 @@ export default function StudentSessionChat({
         payload
           ? current
           : current.map((message) =>
-              message.id === optimisticId
-                ? {
-                    ...message,
-                    pending: false,
-                    content: buildDisplayContent(
-                      nextPayload.message,
-                      nextPayload.snippet,
-                      transcribedMessage
-                    ) || message.content,
-                  }
-                : message
-            )
+            message.id === optimisticId
+              ? {
+                ...message,
+                pending: false,
+                content: buildDisplayContent(
+                  nextPayload.message,
+                  transcribedMessage
+                ) || message.content,
+              }
+              : message
+          )
       );
     } finally {
       setIsSending(false);
@@ -387,7 +429,55 @@ export default function StudentSessionChat({
     setRecording(null);
   }
 
-  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || snippet.trim() || recording);
+  function editMessage(message: ChatMessage) {
+    if (message.id !== latestStudentMessageId) return;
+    const messageIndex = messages.findIndex((entry) => entry.id === message.id);
+    const aiMessageId = messageIndex === -1
+      ? null
+      : messages.slice(messageIndex + 1).find((entry) => entry.role === "ai")?.id ?? null;
+
+    setEditTarget({
+      studentMessageId: message.id,
+      aiMessageId,
+    });
+    setDraft(stripVoiceTranscript(message.content));
+    setRecording(message.recording ?? null);
+    setError(null);
+    requestAnimationFrame(() => {
+      composerRef.current?.focus();
+    });
+  }
+
+  function insertCodeBlock() {
+    const textarea = composerRef.current;
+    const template = "```ts\n// paste code snippet here\n```";
+
+    if (!textarea) {
+      setDraft((current) => [current.trimEnd(), template].filter(Boolean).join("\n\n"));
+      return;
+    }
+
+    const start = textarea.selectionStart ?? draft.length;
+    const end = textarea.selectionEnd ?? draft.length;
+    const nextValue = `${draft.slice(0, start)}${template}${draft.slice(end)}`;
+
+    setDraft(nextValue);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursorPosition = start + template.length;
+      textarea.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  }
+
+  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || recording);
+  const latestStudentMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role === "student") return message.id;
+    }
+    return null;
+  }, [messages]);
 
   return (
     <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden min-h-[720px] flex flex-col">
@@ -415,37 +505,59 @@ export default function StudentSessionChat({
             return (
               <div key={message.id} className={`flex ${isStudent ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
-                    isStudent ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-gray-200"
-                  }`}
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${isStudent ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-gray-200"
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`text-xs font-medium ${isStudent ? "text-indigo-100" : "text-gray-500"}`}>
-                      {isStudent ? "You" : "Ora"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium ${isStudent ? "text-indigo-100" : "text-gray-500"}`}>
+                        {isStudent ? "You" : "Ora"}
+                      </span>
+                      {isStudent &&
+                        !message.pending &&
+                        status !== "completed" &&
+                        message.id === latestStudentMessageId && (
+                          <button
+                            type="button"
+                            onClick={() => editMessage(message)}
+                            className={`text-[11px] font-medium underline underline-offset-2 ${isStudent ? "text-indigo-100 hover:text-white" : "text-gray-500 hover:text-gray-700"
+                              }`}
+                          >
+                            Edit
+                          </button>
+                        )}
+                    </div>
                     <span className={`text-xs ${isStudent ? "text-indigo-100" : "text-gray-400"}`}>
                       {message.pending
                         ? "Sending..."
                         : new Date(message.createdAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
                     </span>
                   </div>
 
-                  <p className={`mt-2 whitespace-pre-wrap text-sm leading-relaxed ${isStudent ? "text-white" : "text-gray-800"}`}>
-                    {message.content}
-                  </p>
-
-                  {message.snippet && (
-                    <pre
-                      className={`mt-3 overflow-x-auto rounded-xl p-3 text-xs leading-relaxed ${
-                        isStudent ? "bg-indigo-700 text-indigo-50" : "bg-gray-900 text-gray-100"
-                      }`}
-                    >
-                      <code>{message.snippet}</code>
-                    </pre>
-                  )}
+                  <div className="mt-2 space-y-3">
+                    {splitMessageContent(message.content).map((segment, index) =>
+                      segment.type === "code" ? (
+                        <pre
+                          key={`${message.id}-code-${index}`}
+                          className={`overflow-x-auto rounded-xl p-3 text-xs leading-relaxed ${isStudent ? "bg-indigo-700 text-indigo-50" : "bg-gray-900 text-gray-100"
+                            }`}
+                        >
+                          <code>{segment.value}</code>
+                        </pre>
+                      ) : (
+                        <p
+                          key={`${message.id}-text-${index}`}
+                          className={`whitespace-pre-wrap text-sm leading-relaxed ${isStudent ? "text-white" : "text-gray-800"
+                            }`}
+                        >
+                          {segment.value}
+                        </p>
+                      )
+                    )}
+                  </div>
 
                   {message.recording && (
                     <div className={`mt-3 rounded-xl p-3 ${isStudent ? "bg-indigo-700" : "bg-gray-100"}`}>
@@ -487,14 +599,11 @@ export default function StudentSessionChat({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setSnippetOpen((current) => !current)}
-            className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-              snippetOpen || snippet
-                ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
+            onClick={insertCodeBlock}
+            disabled={isSending || status === "completed"}
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            {snippetOpen || snippet ? "Code snippet attached" : "Add code snippet"}
+            Insert code block
           </button>
 
           {isRecording ? (
@@ -527,19 +636,6 @@ export default function StudentSessionChat({
           )}
         </div>
 
-        {snippetOpen && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Code snippet</label>
-            <textarea
-              value={snippet}
-              onChange={(event) => setSnippet(event.target.value)}
-              rows={6}
-              disabled={status === "completed"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y disabled:bg-gray-100"
-            />
-          </div>
-        )}
-
         {recording && (
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
             <div className="flex items-center justify-between gap-3">
@@ -562,11 +658,12 @@ export default function StudentSessionChat({
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">Your response</label>
             <textarea
+              ref={composerRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              rows={4}
+              rows={7}
               disabled={isSending || status === "completed"}
-              placeholder="Explain your approach, tradeoffs, and examples."
+              placeholder={"Type your answer here. Paste code snippets directly into this box, or use Insert code block. Voice notes will be transcribed automatically on send."}
               className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y disabled:bg-gray-100"
             />
           </div>
