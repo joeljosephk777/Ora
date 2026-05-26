@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type InitialChatMessage = {
   id: string;
@@ -27,12 +27,12 @@ type PendingPayload = {
   message: string;
   recording: RecordingAttachment | null;
   transcribedMessage: string | null;
-  editTarget: EditTarget | null;
 };
 
-type EditTarget = {
-  studentMessageId: string;
-  aiMessageId: string | null;
+type ParsedMessageContent = {
+  body: string;
+  transcript: string | null;
+  attachmentNote: string | null;
 };
 
 type Props = {
@@ -75,19 +75,40 @@ function getVoiceTranscriptLabel(transcript: string) {
   return `Voice note transcript:\n${transcript}`;
 }
 
-function stripVoiceTranscript(content: string) {
+function parseMessageContent(content: string): ParsedMessageContent {
+  const attachmentMatch = content.match(/\n\n(\[Voice annotation attached:[^\n]+\])$/);
+  const attachmentNote = attachmentMatch?.[1] ?? null;
+  const contentWithoutAttachment = attachmentMatch
+    ? content.slice(0, attachmentMatch.index).trim()
+    : content.trim();
   const marker = "\n\nVoice note transcript:\n";
-  const markerIndex = content.lastIndexOf(marker);
+  const markerIndex = contentWithoutAttachment.lastIndexOf(marker);
 
   if (markerIndex !== -1) {
-    return content.slice(0, markerIndex).trim();
+    return {
+      body: contentWithoutAttachment.slice(0, markerIndex).trim(),
+      transcript: contentWithoutAttachment.slice(markerIndex + marker.length).trim() || null,
+      attachmentNote,
+    };
   }
 
-  if (content.startsWith("Voice note transcript:\n")) {
-    return "";
+  if (contentWithoutAttachment.startsWith("Voice note transcript:\n")) {
+    return {
+      body: "",
+      transcript: contentWithoutAttachment.slice("Voice note transcript:\n".length).trim() || null,
+      attachmentNote,
+    };
   }
 
-  return content;
+  return {
+    body: contentWithoutAttachment,
+    transcript: null,
+    attachmentNote,
+  };
+}
+
+function stripVoiceTranscript(content: string) {
+  return parseMessageContent(content).body;
 }
 
 function buildDisplayContent(message: string, transcribedMessage: string | null) {
@@ -122,13 +143,34 @@ function splitMessageContent(content: string) {
   return segments.length > 0 ? segments : [{ type: "text" as const, value: content }];
 }
 
+function getStatusMeta(status: Props["initialStatus"]) {
+  if (status === "completed") {
+    return {
+      badgeClasses: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+      label: "Completed",
+    };
+  }
+
+  if (status === "in_progress") {
+    return {
+      badgeClasses: "border border-amber-200 bg-amber-50 text-amber-700",
+      label: "In progress",
+    };
+  }
+
+  return {
+    badgeClasses: "border border-sky-200 bg-sky-50 text-sky-700",
+    label: "Ready",
+  };
+}
+
 export default function StudentSessionChat({
   sessionId,
   assignmentTitle,
   initialStatus,
   initialMessages,
 }: Props) {
-  const supabase = useMemo(() => createClient(), []);
+  const [supabase] = useState(() => createClient());
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState(initialStatus);
   const [draft, setDraft] = useState("");
@@ -136,9 +178,9 @@ export default function StudentSessionChat({
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedPayload, setLastFailedPayload] = useState<PendingPayload | null>(null);
-  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingBlocked, setRecordingBlocked] = useState(false);
+  const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -152,7 +194,15 @@ export default function StudentSessionChat({
       top: transcriptRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages]);
+  }, [messages, isSending]);
+
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 320)}px`;
+  }, [draft]);
 
   useEffect(() => {
     return () => {
@@ -198,7 +248,7 @@ export default function StudentSessionChat({
     if (!response.ok) {
       throw new Error(
         extractResponseMessage(parsedBody) ??
-        (response.status === 404 ? "Transcription API is not available yet." : "Failed to transcribe audio.")
+          (response.status === 404 ? "Transcription API is not available yet." : "Failed to transcribe audio.")
       );
     }
 
@@ -218,7 +268,6 @@ export default function StudentSessionChat({
       message: draft.trim(),
       recording,
       transcribedMessage: null,
-      editTarget,
     };
 
     if (!nextPayload.message && !nextPayload.recording) return;
@@ -227,31 +276,22 @@ export default function StudentSessionChat({
     setError(null);
 
     if (!payload) {
-      const nextTarget = nextPayload.editTarget;
       setDraft("");
       setRecording(null);
-      setEditTarget(null);
-      setMessages((current) => {
-        const pruned = nextTarget
-          ? current.filter(
-            (message) =>
-              message.id !== nextTarget.studentMessageId && message.id !== nextTarget.aiMessageId
-          )
-          : current;
-
-        return [
-          ...pruned,
-          {
-            id: optimisticId,
-            role: "student",
-            content: buildDisplayContent(nextPayload.message, nextPayload.transcribedMessage) ||
-              (nextPayload.recording ? "Voice note ready to transcribe." : "Sending..."),
-            createdAt: new Date().toISOString(),
-            recording: nextPayload.recording,
-            pending: true,
-          },
-        ];
-      });
+      setDraftSourceId(null);
+      setMessages((current) => [
+        ...current,
+        {
+          id: optimisticId,
+          role: "student",
+          content:
+            buildDisplayContent(nextPayload.message, nextPayload.transcribedMessage) ||
+            (nextPayload.recording ? "Voice note ready to transcribe." : "Sending..."),
+          createdAt: new Date().toISOString(),
+          recording: nextPayload.recording,
+          pending: true,
+        },
+      ]);
     }
 
     let transcribedMessage = nextPayload.transcribedMessage;
@@ -263,7 +303,10 @@ export default function StudentSessionChat({
         transcribedMessage = await transcribeRecording(nextPayload.recording);
       }
 
-      const composedMessage = [nextPayload.message, transcribedMessage ? getVoiceTranscriptLabel(transcribedMessage) : ""]
+      const composedMessage = [
+        nextPayload.message,
+        transcribedMessage ? getVoiceTranscriptLabel(transcribedMessage) : "",
+      ]
         .filter(Boolean)
         .join("\n\n");
 
@@ -284,9 +327,9 @@ export default function StudentSessionChat({
           codeSnippet: null,
           voiceAnnotation: nextPayload.recording
             ? {
-              durationMs: nextPayload.recording.durationMs,
-              mimeType: nextPayload.recording.mimeType,
-            }
+                durationMs: nextPayload.recording.durationMs,
+                mimeType: nextPayload.recording.mimeType,
+              }
             : null,
         }),
       });
@@ -304,7 +347,7 @@ export default function StudentSessionChat({
       if (!response.ok) {
         throw new Error(
           extractResponseMessage(parsedBody) ??
-          (response.status === 404 ? "Chat API is not available yet." : "Failed to send message.")
+            (response.status === 404 ? "Chat API is not available yet." : "Failed to send message.")
         );
       }
 
@@ -318,10 +361,10 @@ export default function StudentSessionChat({
         ...current.map((message) =>
           message.id === optimisticId
             ? {
-              ...message,
-              pending: false,
-              content: displayContent,
-            }
+                ...message,
+                pending: false,
+                content: displayContent,
+              }
             : message
         ),
         {
@@ -332,16 +375,12 @@ export default function StudentSessionChat({
         },
       ]);
 
-      if (
-        payload &&
-        (
-          draft.trim() === nextPayload.message &&
-          recording?.url === nextPayload.recording?.url
-        )
-      ) {
+      if (payload && draft.trim() === nextPayload.message && recording?.url === nextPayload.recording?.url) {
         setDraft("");
         setRecording(null);
+        setDraftSourceId(null);
       }
+
       setLastFailedPayload(null);
     } catch (sendError) {
       setLastFailedPayload({
@@ -353,17 +392,14 @@ export default function StudentSessionChat({
         payload
           ? current
           : current.map((message) =>
-            message.id === optimisticId
-              ? {
-                ...message,
-                pending: false,
-                content: buildDisplayContent(
-                  nextPayload.message,
-                  transcribedMessage
-                ) || message.content,
-              }
-              : message
-          )
+              message.id === optimisticId
+                ? {
+                    ...message,
+                    pending: false,
+                    content: buildDisplayContent(nextPayload.message, transcribedMessage) || message.content,
+                  }
+                : message
+            )
       );
     } finally {
       setIsSending(false);
@@ -429,17 +465,10 @@ export default function StudentSessionChat({
     setRecording(null);
   }
 
-  function editMessage(message: ChatMessage) {
+  function reuseMessage(message: ChatMessage) {
     if (message.id !== latestStudentMessageId) return;
-    const messageIndex = messages.findIndex((entry) => entry.id === message.id);
-    const aiMessageId = messageIndex === -1
-      ? null
-      : messages.slice(messageIndex + 1).find((entry) => entry.role === "ai")?.id ?? null;
 
-    setEditTarget({
-      studentMessageId: message.id,
-      aiMessageId,
-    });
+    setDraftSourceId(message.id);
     setDraft(stripVoiceTranscript(message.content));
     setRecording(message.recording ?? null);
     setError(null);
@@ -470,211 +499,328 @@ export default function StudentSessionChat({
     });
   }
 
-  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || recording);
-  const latestStudentMessageId = useMemo(() => {
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || isSending || status === "completed") return;
+
+    event.preventDefault();
+    if (!draft.trim() && !recording) return;
+    void sendMessage();
+  }
+
+  const latestStudentMessageId = (() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];
       if (message.role === "student") return message.id;
     }
     return null;
-  }, [messages]);
+  })();
+  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || recording);
+  const statusMeta = getStatusMeta(status);
+  const messageCount = messages.filter((message) => !message.pending).length;
 
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden min-h-[720px] flex flex-col">
-      <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="font-semibold text-gray-900">{assignmentTitle}</h2>
-          <p className="text-sm text-gray-500">{messages.length} messages</p>
+    <section className="flex min-h-[760px] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur">
+      <div className="border-b border-slate-200/80 bg-white/80 px-6 py-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Live interview</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Conversation with Ora</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {assignmentTitle} · Explain your decisions, share code when useful, and keep each reply focused.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600">
+              {messageCount} {messageCount === 1 ? "message" : "messages"}
+            </span>
+            <span className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ${statusMeta.badgeClasses}`}>
+              {statusMeta.label}
+            </span>
+          </div>
         </div>
-        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
-          {status.replace("_", " ")}
-        </span>
       </div>
 
-      <div ref={transcriptRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-gray-50">
-        {messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="max-w-sm text-center">
-              <p className="text-sm font-medium text-gray-700">Ready when you are.</p>
-              <p className="mt-1 text-sm text-gray-500">Share your reasoning, examples, and code context in the thread.</p>
+      <div
+        ref={transcriptRef}
+        className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.94)_0%,rgba(241,245,249,0.86)_100%)] px-4 py-5 sm:px-6"
+      >
+        {messages.length === 0 && !isSending ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="w-full max-w-2xl rounded-[2rem] border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)]">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Ready when you are</p>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Start with how you approached the assignment</h3>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-600">
+                A strong first answer usually covers the main idea, the parts you found most important, and any design
+                tradeoffs or debugging decisions that shaped the final implementation.
+              </p>
+
+              <div className="mt-6 grid gap-3 text-left md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Good opener</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">Summarize the problem and the architecture you chose.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Use code</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">Paste a snippet when the implementation matters more than the description.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Stay concrete</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">Reference actual functions, decisions, and tradeoffs instead of broad claims.</p>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
-          messages.map((message) => {
-            const isStudent = message.role === "student";
-            return (
-              <div key={message.id} className={`flex ${isStudent ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${isStudent ? "bg-indigo-600 text-white" : "bg-white text-gray-900 border border-gray-200"
+          <div className="mx-auto max-w-3xl space-y-5">
+            {messages.map((message) => {
+              const isStudent = message.role === "student";
+              const parsedContent = parseMessageContent(message.content);
+              const hasMainBody = Boolean(parsedContent.body);
+              const showReuseAction =
+                isStudent && !message.pending && status !== "completed" && message.id === latestStudentMessageId;
+
+              return (
+                <div key={message.id} className={`flex ${isStudent ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`w-full max-w-2xl rounded-[1.75rem] px-5 py-4 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.35)] ${
+                      isStudent
+                        ? "bg-slate-900 text-white"
+                        : "border border-slate-200/80 bg-white/95 text-slate-900"
                     }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium ${isStudent ? "text-indigo-100" : "text-gray-500"}`}>
-                        {isStudent ? "You" : "Ora"}
-                      </span>
-                      {isStudent &&
-                        !message.pending &&
-                        status !== "completed" &&
-                        message.id === latestStudentMessageId && (
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-200" : "text-slate-500"}`}>
+                          {isStudent ? "You" : "Ora"}
+                        </span>
+                        {showReuseAction && (
                           <button
                             type="button"
-                            onClick={() => editMessage(message)}
-                            className={`text-[11px] font-medium underline underline-offset-2 ${isStudent ? "text-indigo-100 hover:text-white" : "text-gray-500 hover:text-gray-700"
-                              }`}
+                            onClick={() => reuseMessage(message)}
+                            className={`text-[11px] font-medium ${
+                              isStudent
+                                ? "text-slate-300 transition-colors hover:text-white"
+                                : "text-slate-500 transition-colors hover:text-slate-900"
+                            }`}
                           >
                             Edit
                           </button>
                         )}
+                      </div>
+                      <span className={`text-xs ${isStudent ? "text-slate-300" : "text-slate-400"}`}>
+                        {message.pending
+                          ? "Sending..."
+                          : new Date(message.createdAt).toLocaleTimeString([], {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                      </span>
                     </div>
-                    <span className={`text-xs ${isStudent ? "text-indigo-100" : "text-gray-400"}`}>
-                      {message.pending
-                        ? "Sending..."
-                        : new Date(message.createdAt).toLocaleTimeString([], {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                    </span>
-                  </div>
 
-                  <div className="mt-2 space-y-3">
-                    {splitMessageContent(message.content).map((segment, index) =>
-                      segment.type === "code" ? (
-                        <pre
-                          key={`${message.id}-code-${index}`}
-                          className={`overflow-x-auto rounded-xl p-3 text-xs leading-relaxed ${isStudent ? "bg-indigo-700 text-indigo-50" : "bg-gray-900 text-gray-100"
-                            }`}
-                        >
-                          <code>{segment.value}</code>
-                        </pre>
+                    <div className="mt-3 space-y-3">
+                      {hasMainBody ? (
+                        splitMessageContent(parsedContent.body).map((segment, index) =>
+                          segment.type === "code" ? (
+                            <pre
+                              key={`${message.id}-code-${index}`}
+                              className={`overflow-x-auto rounded-2xl p-4 text-xs leading-relaxed ${
+                                isStudent ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-slate-100"
+                              }`}
+                            >
+                              <code>{segment.value}</code>
+                            </pre>
+                          ) : (
+                            <p
+                              key={`${message.id}-text-${index}`}
+                              className={`whitespace-pre-wrap text-sm leading-7 ${
+                                isStudent ? "text-white" : "text-slate-700"
+                              }`}
+                            >
+                              {segment.value}
+                            </p>
+                          )
+                        )
                       ) : (
-                        <p
-                          key={`${message.id}-text-${index}`}
-                          className={`whitespace-pre-wrap text-sm leading-relaxed ${isStudent ? "text-white" : "text-gray-800"
-                            }`}
-                        >
-                          {segment.value}
+                        <p className={`text-sm leading-7 ${isStudent ? "text-slate-100" : "text-slate-600"}`}>
+                          Voice note attached.
                         </p>
-                      )
+                      )}
+                    </div>
+
+                    {parsedContent.transcript && (
+                      <div
+                        className={`mt-4 rounded-2xl px-4 py-3 ${
+                          isStudent ? "bg-slate-800/90" : "bg-slate-50"
+                        }`}
+                      >
+                        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-300" : "text-slate-500"}`}>
+                          Voice transcript
+                        </p>
+                        <p className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${isStudent ? "text-slate-100" : "text-slate-600"}`}>
+                          {parsedContent.transcript}
+                        </p>
+                      </div>
+                    )}
+
+                    {!message.recording && parsedContent.attachmentNote && (
+                      <div
+                        className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                          isStudent ? "bg-slate-800/90 text-slate-200" : "bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        {parsedContent.attachmentNote}
+                      </div>
+                    )}
+
+                    {message.recording && (
+                      <div className={`mt-4 rounded-2xl p-4 ${isStudent ? "bg-slate-800/90" : "bg-slate-50"}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-300" : "text-slate-500"}`}>
+                            Voice note
+                          </span>
+                          <span className={`text-xs ${isStudent ? "text-slate-300" : "text-slate-500"}`}>
+                            {getRecordingTimeLabel(message.recording.durationMs)}
+                          </span>
+                        </div>
+                        <audio className="mt-3 w-full" controls src={message.recording.url} />
+                      </div>
                     )}
                   </div>
+                </div>
+              );
+            })}
 
-                  {message.recording && (
-                    <div className={`mt-3 rounded-xl p-3 ${isStudent ? "bg-indigo-700" : "bg-gray-100"}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={`text-xs font-medium ${isStudent ? "text-indigo-100" : "text-gray-600"}`}>
-                          Voice annotation
-                        </span>
-                        <span className={`text-xs ${isStudent ? "text-indigo-100" : "text-gray-500"}`}>
-                          {getRecordingTimeLabel(message.recording.durationMs)}
-                        </span>
-                      </div>
-                      <audio className="mt-2 w-full" controls src={message.recording.url} />
-                    </div>
-                  )}
+            {isSending && (
+              <div className="flex justify-start">
+                <div className="w-full max-w-xl rounded-[1.75rem] border border-slate-200/80 bg-white/95 px-5 py-4 text-slate-900 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.35)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Ora</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                    Ora is responding and will follow up with one focused question.
+                  </p>
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
-
-      <div className="border-t border-gray-200 p-4 space-y-4">
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-red-700">{error}</p>
-            {lastFailedPayload && (
-              <button
-                type="button"
-                onClick={() => sendMessage(lastFailedPayload)}
-                disabled={isSending}
-                className="shrink-0 px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
-              >
-                Retry
-              </button>
             )}
           </div>
         )}
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={insertCodeBlock}
-            disabled={isSending || status === "completed"}
-            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Insert code block
-          </button>
-
-          {isRecording ? (
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="px-3 py-2 text-sm font-medium rounded-lg border border-red-200 bg-red-50 text-red-700"
-            >
-              Stop recording
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={startRecording}
-              disabled={status === "completed"}
-              className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {recording ? "Replace voice annotation" : "Add voice annotation"}
-            </button>
+      <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
+        <div className="mx-auto max-w-3xl space-y-4">
+          {draftSourceId && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+              You are revising your latest answer in the composer. Sending will add a new message and keep the
+              original transcript intact.
+            </div>
           )}
+
+          {error && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">{error}</p>
+              {lastFailedPayload && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void sendMessage(lastFailedPayload);
+                  }}
+                  disabled={isSending}
+                  className="shrink-0 rounded-full border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={insertCodeBlock}
+              disabled={isSending || status === "completed"}
+              className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Insert code block
+            </button>
+
+            {isRecording ? (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+              >
+                Stop recording
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={status === "completed"}
+                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {recording ? "Replace voice note" : "Add voice note"}
+              </button>
+            )}
+
+            {recording && (
+              <button
+                type="button"
+                onClick={clearRecording}
+                className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
+              >
+                Remove voice note
+              </button>
+            )}
+
+            <span className="ml-auto text-xs text-slate-400">Enter to send · Shift+Enter for a new line</span>
+          </div>
 
           {recording && (
-            <button
-              type="button"
-              onClick={clearRecording}
-              className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            >
-              Remove voice annotation
-            </button>
-          )}
-        </div>
-
-        {recording && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Voice annotation</p>
-                <p className="text-xs text-gray-500">
-                  {getRecordingTimeLabel(recording.durationMs)} · transcribed on send
-                </p>
+            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Voice note attached</p>
+                  <p className="text-xs text-slate-500">
+                    {getRecordingTimeLabel(recording.durationMs)} · transcribed automatically on send
+                  </p>
+                </div>
               </div>
+              <audio className="mt-3 w-full" controls src={recording.url} />
             </div>
-            <audio className="mt-3 w-full" controls src={recording.url} />
-          </div>
-        )}
+          )}
 
-        {recordingBlocked && (
-          <p className="text-sm text-amber-700">Microphone access is unavailable in this browser session.</p>
-        )}
+          {recordingBlocked && (
+            <p className="text-sm text-amber-700">Microphone access is unavailable in this browser session.</p>
+          )}
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Your response</label>
+          <div className="rounded-[1.75rem] border border-slate-200/80 bg-slate-50/85 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
             <textarea
               ref={composerRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              rows={7}
+              onKeyDown={handleComposerKeyDown}
+              rows={1}
               disabled={isSending || status === "completed"}
-              placeholder={"Type your answer here. Paste code snippets directly into this box, or use Insert code block. Voice notes will be transcribed automatically on send."}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y disabled:bg-gray-100"
+              placeholder="Type your answer here. Paste code directly, use Insert code block for formatting, or attach a voice note when it is easier to explain aloud."
+              className="min-h-[120px] w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-7 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
             />
+
+            <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-200/80 px-2 pt-3">
+              <p className="max-w-xl text-xs leading-5 text-slate-500">
+                Ora keeps the interview focused with one follow-up question at a time, so concise and concrete answers
+                work best.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  void sendMessage();
+                }}
+                disabled={!canSend}
+                className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {isSending ? "Ora is responding..." : "Send message"}
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => sendMessage()}
-            disabled={!canSend}
-            className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isSending ? "Sending..." : "Send"}
-          </button>
         </div>
       </div>
     </section>

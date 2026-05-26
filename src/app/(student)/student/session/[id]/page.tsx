@@ -90,57 +90,100 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
   }));
 
   const completeAction = completeSession.bind(null, session.id);
+  const typedQuestions = (questions ?? []) as QuestionRow[];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link href="/student/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Back to dashboard
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">{assignment.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">Chat with Ora about your implementation and decisions.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusClasses(session.status)}`}>
-            {statusLabel(session.status)}
-          </span>
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl">
+            <Link href="/student/dashboard" className="text-sm text-slate-500 transition-colors hover:text-slate-700">
+              ← Back to dashboard
+            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(session.status)}`}>
+                {statusLabel(session.status)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {typedQuestions.length} guiding {typedQuestions.length === 1 ? "question" : "questions"}
+              </span>
+            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{assignment.title}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              Treat this like a focused technical walkthrough. Explain the reasoning behind your choices, reference
+              concrete parts of your code, and answer one follow-up question at a time.
+            </p>
+          </div>
+
           {session.status !== "completed" && (
             <form action={completeAction}>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
               >
                 Complete session
               </button>
             </form>
           )}
         </div>
-      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4">
-          <section className="bg-white border border-gray-200 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Assignment</h2>
-            <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {assignment.description}
+        <div className="mt-6 grid gap-3 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">1. Explain the approach</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Start with the high-level idea, then zoom into the parts of the implementation you know best.
             </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">2. Show your thinking</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Paste snippets or add a voice note when a design tradeoff is easier to explain than to type.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">3. Submit clearly</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              When you are satisfied with the transcript, complete the session to send it for instructor review.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <StudentSessionChat
+          sessionId={session.id}
+          initialStatus={session.status}
+          initialMessages={initialMessages}
+          assignmentTitle={assignment.title}
+        />
+
+        <aside className="space-y-4 xl:sticky xl:top-24">
+          <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.28)] backdrop-blur">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Session guide</h2>
+            <ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
+              <li>Lead with your implementation choices before diving into details.</li>
+              <li>Use Enter to send and Shift+Enter when you need a new line in the composer.</li>
+              <li>Use the last student message as a draft if you want to rephrase before replying again.</li>
+            </ul>
           </section>
 
-          <section className="bg-white border border-gray-200 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Rubric</h2>
-            <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {assignment.rubric}
-            </p>
+          <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Assignment brief</h2>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{assignment.description}</p>
           </section>
 
-          {(questions ?? []).length > 0 && (
-            <section className="bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Guiding questions</h2>
-              <ol className="mt-3 space-y-2">
-                {(questions as QuestionRow[]).map((question, index) => (
-                  <li key={question.id} className="flex gap-3 text-sm text-gray-700">
-                    <span className="shrink-0 text-gray-400">{index + 1}.</span>
+          <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rubric focus</h2>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{assignment.rubric}</p>
+          </section>
+
+          {typedQuestions.length > 0 && (
+            <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Guiding questions</h2>
+              <ol className="mt-3 space-y-3">
+                {typedQuestions.map((question, index) => (
+                  <li key={question.id} className="flex gap-3 text-sm leading-6 text-slate-600">
+                    <span className="shrink-0 text-slate-400">{index + 1}.</span>
                     <span>{question.content}</span>
                   </li>
                 ))}
@@ -148,13 +191,6 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
             </section>
           )}
         </aside>
-
-        <StudentSessionChat
-          sessionId={session.id}
-          initialStatus={session.status}
-          initialMessages={initialMessages}
-          assignmentTitle={assignment.title}
-        />
       </div>
     </div>
   );
