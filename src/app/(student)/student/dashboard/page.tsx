@@ -100,21 +100,51 @@ export default async function StudentDashboardPage() {
     session: latestSessionByAssignment.get(assignment.id),
   }));
 
+  const completedCount = checks.filter(({ session }) => session?.status === "completed").length;
+  const activeCount = checks.filter(({ session }) => session?.status === "in_progress").length;
+  const readyCount = checks.filter(({ session }) => !session || session.status === "pending").length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Comprehension checks</h1>
-          <p className="mt-1 text-sm text-gray-500">Start a session or pick up where you left off.</p>
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.9fr)] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Student session hub</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Comprehension checks</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              Each check is a short AI-led walkthrough of your implementation. Start when you are ready,
+              resume anytime, and submit once you feel your reasoning is clearly explained.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900">{checks.length}</p>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Active</p>
+              <p className="mt-2 text-2xl font-semibold text-amber-900">{activeCount}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Completed</p>
+              <p className="mt-2 text-2xl font-semibold text-emerald-900">{completedCount}</p>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/75 px-4 py-3 text-sm text-slate-600">
+          {readyCount} {readyCount === 1 ? "check is" : "checks are"} ready to start. Enter a session with notes,
+          tradeoffs, and any code snippets you want to discuss.
+        </div>
+      </section>
 
       {checks.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-600 text-sm">No checks available yet.</p>
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 py-20 text-center shadow-[0_24px_80px_-36px_rgba(15,23,42,0.24)] backdrop-blur">
+          <p className="text-sm text-slate-600">No checks available yet.</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           {checks.map(({ assignment, session }) => {
             const startAction = startSession.bind(null, assignment.id);
             const statusLabel = getStatusLabel(session?.status);
@@ -126,32 +156,45 @@ export default async function StudentDashboardPage() {
                 : session
                   ? `/student/session/${session.id}`
                   : null;
+            const helperCopy =
+              session?.status === "completed"
+                ? "Review your submitted transcript and confirmation details."
+                : session?.status === "in_progress"
+                  ? "Jump back into the conversation right where you left off."
+                  : "Start the interview when you're ready to explain your implementation.";
 
             return (
               <div
                 key={assignment.id}
-                className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-4"
+                className="flex flex-col gap-5 rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-6 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.28)] backdrop-blur"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="font-semibold text-gray-900">{assignment.title}</h2>
-                    <p className="mt-1 text-sm text-gray-500">{assignment.description}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Comprehension check
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold text-slate-900">{assignment.title}</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{assignment.description}</p>
                   </div>
                   <span
-                    className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusClasses(session?.status)}`}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(session?.status)}`}
                   >
                     {statusLabel}
                   </span>
                 </div>
 
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 text-sm text-slate-600">
+                  {helperCopy}
+                </div>
+
                 <div className="flex items-center justify-between gap-3 pt-1">
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-slate-400">
                     {new Date(assignment.created_at).toLocaleDateString()}
                   </span>
                   {actionHref ? (
                     <Link
                       href={actionHref}
-                      className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                      className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
                     >
                       {actionLabel}
                     </Link>
@@ -159,7 +202,7 @@ export default async function StudentDashboardPage() {
                     <form action={startAction}>
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                        className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
                       >
                         {actionLabel}
                       </button>

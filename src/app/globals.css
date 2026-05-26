@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --ora-bg-top: #f7fbff;
+    --ora-bg-bottom: #eef3fb;
+    --ora-surface: rgba(255, 255, 255, 0.88);
+    --ora-border: rgba(148, 163, 184, 0.24);
+    --ora-ink: #0f172a;
+    --ora-muted: #475569;
+    --ora-accent: #1d4ed8;
+  }
+
+  html {
+    background:
+      radial-gradient(circle at top left, rgba(125, 211, 252, 0.24), transparent 34%),
+      radial-gradient(circle at top right, rgba(191, 219, 254, 0.28), transparent 30%),
+      linear-gradient(180deg, var(--ora-bg-top) 0%, var(--ora-bg-bottom) 100%);
+  }
+
+  body {
+    min-height: 100vh;
+    color: var(--ora-ink);
+    background:
+      radial-gradient(circle at 20% 0%, rgba(186, 230, 253, 0.22), transparent 28%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(238, 243, 251, 0.88) 100%);
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(59, 130, 246, 0.2);
+  }
+}

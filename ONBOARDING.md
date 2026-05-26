@@ -189,6 +189,12 @@ src/proxy.ts
 ### Garv — Student Session UI
 **Branch:** `garv`
 
+**Usability polish completed on `garv`:**
+- [x] Shifted the student session screen to a chat-first layout with a contextual right rail for assignment, rubric, and question review.
+- [x] Added a more LLM-style conversation experience with clearer empty states, message hierarchy, and in-thread "Ora is responding" feedback.
+- [x] Reworked the composer with Enter-to-send, Shift+Enter for new lines, code/voice tools, inline retry handling, and honest "use as draft" behavior instead of misleading transcript editing.
+- [x] Polished the surrounding student flow so the dashboard, session, and completion screens feel visually consistent and easier to navigate.
+
 The student-facing flow: from receiving a link to completing the AI interview.
 
 - Student dashboard (list of assigned checks)
