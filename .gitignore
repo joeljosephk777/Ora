@@ -19,3 +19,10 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# dev server logs
+.next-dev.log
+.next-dev.err.log
+
+# graphify knowledge graph output
+graphify-out/
