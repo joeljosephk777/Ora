@@ -62,6 +62,10 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
 
   if (!submission) notFound();
 
+  if (!submission.code.trim()) {
+    redirect(`/student/assignments/${submission.assignment_id}/submit`);
+  }
+
   const [{ data: assignment }, { data: questions }, { data: messages }] = await Promise.all([
     supabase
       .from("assignments")
@@ -190,6 +194,13 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
               </ol>
             </section>
           )}
+
+          <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Submitted code</h2>
+            <pre className="mt-3 max-h-[360px] overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">
+              <code>{submission.code}</code>
+            </pre>
+          </section>
         </aside>
       </div>
     </div>

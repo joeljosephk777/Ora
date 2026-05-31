@@ -1,4 +1,3 @@
-import { startSession } from "@/lib/actions/studentSessions";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -146,7 +145,6 @@ export default async function StudentDashboardPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {checks.map(({ assignment, session }) => {
-            const startAction = startSession.bind(null, assignment.id);
             const statusLabel = getStatusLabel(session?.status);
             const actionLabel =
               session?.status === "completed" ? "View complete" : session ? "Resume session" : "Start session";
@@ -155,7 +153,7 @@ export default async function StudentDashboardPage() {
                 ? `/student/session/${session.id}/complete`
                 : session
                   ? `/student/session/${session.id}`
-                  : null;
+                  : `/student/assignments/${assignment.id}/submit`;
             const helperCopy =
               session?.status === "completed"
                 ? "Review your submitted transcript and confirmation details."
@@ -191,23 +189,12 @@ export default async function StudentDashboardPage() {
                   <span className="text-xs text-slate-400">
                     {new Date(assignment.created_at).toLocaleDateString()}
                   </span>
-                  {actionHref ? (
-                    <Link
-                      href={actionHref}
-                      className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-                    >
-                      {actionLabel}
-                    </Link>
-                  ) : (
-                    <form action={startAction}>
-                      <button
-                        type="submit"
-                        className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-                      >
-                        {actionLabel}
-                      </button>
-                    </form>
-                  )}
+                  <Link
+                    href={actionHref}
+                    className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                  >
+                    {actionLabel}
+                  </Link>
                 </div>
               </div>
             );

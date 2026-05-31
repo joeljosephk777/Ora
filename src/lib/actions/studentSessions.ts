@@ -3,7 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export async function startSession(assignmentId: string) {
+type SubmissionState = { error?: string } | null;
+
+export async function submitCodeAndStartSession(
+  assignmentId: string,
+  prevState: SubmissionState,
+  formData: FormData
+): Promise<SubmissionState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -11,9 +17,25 @@ export async function startSession(assignmentId: string) {
 
   if (!user) redirect("/login");
 
+  const code = (formData.get("code") as string | null)?.trim() ?? "";
+
+  if (!code) {
+    return { error: "Add your code before starting the interview." };
+  }
+
+  const { data: assignment } = await supabase
+    .from("assignments")
+    .select("id")
+    .eq("id", assignmentId)
+    .maybeSingle();
+
+  if (!assignment) {
+    return { error: "Assignment not found." };
+  }
+
   const { data: latestSubmission } = await supabase
     .from("submissions")
-    .select("id")
+    .select("id, code")
     .eq("assignment_id", assignmentId)
     .eq("student_id", user.id)
     .order("submitted_at", { ascending: false })
@@ -29,7 +51,7 @@ export async function startSession(assignmentId: string) {
       .limit(1)
       .maybeSingle();
 
-    if (existingSession && existingSession.status !== "completed") {
+    if (existingSession && existingSession.status !== "completed" && latestSubmission.code.trim()) {
       redirect(`/student/session/${existingSession.id}`);
     }
   }
@@ -39,7 +61,7 @@ export async function startSession(assignmentId: string) {
     .insert({
       assignment_id: assignmentId,
       student_id: user.id,
-      code: "",
+      code,
     })
     .select("id")
     .single();
@@ -62,6 +84,10 @@ export async function startSession(assignmentId: string) {
   }
 
   redirect(`/student/session/${session.id}`);
+}
+
+export async function startSession(assignmentId: string) {
+  redirect(`/student/assignments/${assignmentId}/submit`);
 }
 
 export async function completeSession(sessionId: string) {
