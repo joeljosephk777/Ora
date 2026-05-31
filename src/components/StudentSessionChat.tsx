@@ -29,6 +29,17 @@ type PendingPayload = {
   transcribedMessage: string | null;
 };
 
+const SCRIBE_V2_CREDITS_PER_HOUR = 0.22;
+
+type ElevenLabsUsage = {
+  tier: string | null;
+  status: string | null;
+  characterCount: number | null;
+  characterLimit: number | null;
+  nextResetUnix: number | null;
+  refreshPeriod: string | null;
+};
+
 type ParsedMessageContent = {
   body: string;
   transcript: string | null;
@@ -47,6 +58,48 @@ function getRecordingTimeLabel(durationMs: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatCompactNumber(value: number | null) {
+  if (value === null) return "--";
+  return new Intl.NumberFormat(undefined, {
+    notation: value >= 10000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatEstimatedCredits(value: number) {
+  if (value < 0.001) return value.toFixed(6);
+  if (value < 1) return value.toFixed(4);
+  return value.toFixed(2);
+}
+
+function getEstimatedScribeCredits(durationMs: number) {
+  return (Math.max(1, durationMs / 1000) / 3600) * SCRIBE_V2_CREDITS_PER_HOUR;
+}
+
+function getUsagePercent(usage: ElevenLabsUsage | null) {
+  if (!usage?.characterCount || !usage.characterLimit) return 0;
+  return Math.min(100, Math.max(0, (usage.characterCount / usage.characterLimit) * 100));
+}
+
+function getRecordedUsagePercent(durationMs: number) {
+  const softLimitMs = 5 * 60 * 1000;
+  return Math.min(100, Math.max(4, (durationMs / softLimitMs) * 100));
+}
+
+function getResetLabel(nextResetUnix: number | null) {
+  if (!nextResetUnix) return null;
+
+  return new Date(nextResetUnix * 1000).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getRefreshPeriodLabel(refreshPeriod: string | null) {
+  if (!refreshPeriod) return null;
+  return refreshPeriod.replaceAll("_", " ");
 }
 
 function extractResponseMessage(payload: unknown) {
@@ -181,6 +234,12 @@ export default function StudentSessionChat({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingBlocked, setRecordingBlocked] = useState(false);
   const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
+  const [elevenLabsUsage, setElevenLabsUsage] = useState<ElevenLabsUsage | null>(null);
+  const [lastVoiceUsage, setLastVoiceUsage] = useState<{
+    durationMs: number;
+    estimatedCredits: number;
+  } | null>(null);
+  const [isUsageLoading, setIsUsageLoading] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -195,6 +254,48 @@ export default function StudentSessionChat({
       behavior: "smooth",
     });
   }, [messages, isSending]);
+
+  async function loadElevenLabsUsage() {
+    setIsUsageLoading(true);
+
+    try {
+      const response = await fetch("/api/elevenlabs/usage", {
+        cache: "no-store",
+      });
+
+      const responseBody = await response.text();
+      let parsedBody: unknown = null;
+      if (responseBody) {
+        try {
+          parsedBody = JSON.parse(responseBody);
+        } catch {
+          parsedBody = responseBody;
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(extractResponseMessage(parsedBody) ?? "Failed to load ElevenLabs usage.");
+      }
+
+      if (!parsedBody || typeof parsedBody !== "object") {
+        throw new Error("ElevenLabs usage response was empty.");
+      }
+
+      const usage = parsedBody as ElevenLabsUsage;
+      setElevenLabsUsage({
+        tier: typeof usage.tier === "string" ? usage.tier : null,
+        status: typeof usage.status === "string" ? usage.status : null,
+        characterCount: typeof usage.characterCount === "number" ? usage.characterCount : null,
+        characterLimit: typeof usage.characterLimit === "number" ? usage.characterLimit : null,
+        nextResetUnix: typeof usage.nextResetUnix === "number" ? usage.nextResetUnix : null,
+        refreshPeriod: typeof usage.refreshPeriod === "string" ? usage.refreshPeriod : null,
+      });
+    } catch (usageLoadError) {
+      console.warn(usageLoadError instanceof Error ? usageLoadError.message : "Failed to load ElevenLabs usage.");
+    } finally {
+      setIsUsageLoading(false);
+    }
+  }
 
   useEffect(() => {
     const textarea = composerRef.current;
@@ -257,6 +358,12 @@ export default function StudentSessionChat({
     if (!transcript) {
       throw new Error("Transcription response did not include any text.");
     }
+
+    setLastVoiceUsage({
+      durationMs: attachment.durationMs,
+      estimatedCredits: getEstimatedScribeCredits(attachment.durationMs),
+    });
+    void loadElevenLabsUsage();
 
     return transcript;
   }
@@ -442,6 +549,7 @@ export default function StudentSessionChat({
           mimeType: recorder.mimeType || "audio/webm",
           file,
         });
+        setLastVoiceUsage(null);
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         recorderRef.current = null;
@@ -463,6 +571,7 @@ export default function StudentSessionChat({
 
   function clearRecording() {
     setRecording(null);
+    setLastVoiceUsage(null);
   }
 
   function reuseMessage(message: ChatMessage) {
@@ -517,6 +626,10 @@ export default function StudentSessionChat({
   const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || recording);
   const statusMeta = getStatusMeta(status);
   const messageCount = messages.filter((message) => !message.pending).length;
+  const usagePercent = getUsagePercent(elevenLabsUsage);
+  const resetLabel = getResetLabel(elevenLabsUsage?.nextResetUnix ?? null);
+  const refreshPeriodLabel = getRefreshPeriodLabel(elevenLabsUsage?.refreshPeriod ?? null);
+  const shouldShowVoiceUsage = Boolean(recording || lastVoiceUsage || elevenLabsUsage || isUsageLoading);
 
   return (
     <section className="flex min-h-[760px] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur">
@@ -785,6 +898,64 @@ export default function StudentSessionChat({
                 </div>
               </div>
               <audio className="mt-3 w-full" controls src={recording.url} />
+            </div>
+          )}
+
+          {shouldShowVoiceUsage && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    ElevenLabs voice usage
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {lastVoiceUsage
+                      ? `${getRecordingTimeLabel(lastVoiceUsage.durationMs)} audio used about ${formatEstimatedCredits(
+                          lastVoiceUsage.estimatedCredits
+                        )} credits.`
+                      : recording
+                        ? `${getRecordingTimeLabel(recording.durationMs)} audio ready to transcribe, about ${formatEstimatedCredits(
+                            getEstimatedScribeCredits(recording.durationMs)
+                          )} credits.`
+                        : isUsageLoading
+                          ? "Refreshing account usage..."
+                          : "Voice transcription usage will update after the next recording."}
+                  </p>
+                  {(lastVoiceUsage || recording) && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Scribe v2 is metered by audio duration, so this is an immediate estimate from the recorded length.
+                    </p>
+                  )}
+                </div>
+                {elevenLabsUsage && (
+                  <div className="min-w-[180px]">
+                    <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                      <span>{Math.round(usagePercent)}% quota used</span>
+                      {resetLabel && <span>Resets {resetLabel}</span>}
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          usagePercent >= 90 ? "bg-red-500" : usagePercent >= 75 ? "bg-amber-500" : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${usagePercent}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {formatCompactNumber(elevenLabsUsage.characterCount)} / {formatCompactNumber(elevenLabsUsage.characterLimit)} chars
+                      {refreshPeriodLabel ? ` (${refreshPeriodLabel})` : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {recording && !lastVoiceUsage && (
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all"
+                    style={{ width: `${getRecordedUsagePercent(recording.durationMs)}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
