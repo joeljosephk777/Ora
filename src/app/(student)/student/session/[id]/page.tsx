@@ -337,7 +337,7 @@ function StudentSessionPageContent({
           )}
         </div>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-3">
+        <div className="mt-6 grid gap-3 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">1. Explain the approach</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -351,7 +351,7 @@ function StudentSessionPageContent({
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">3. Submit clearly</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">3. Finish clearly</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               When you are satisfied with the transcript, complete the session to send it for instructor review.
             </p>
@@ -381,25 +381,6 @@ function StudentSessionPageContent({
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Assignment brief</h2>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{assignment.description}</p>
           </section>
-
-          <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Rubric focus</h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{assignment.rubric}</p>
-          </section>
-
-          {typedQuestions.length > 0 && (
-            <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Guiding questions</h2>
-              <ol className="mt-3 space-y-3">
-                {typedQuestions.map((question, index) => (
-                  <li key={question.id} className="flex gap-3 text-sm leading-6 text-slate-600">
-                    <span className="shrink-0 text-slate-400">{index + 1}.</span>
-                    <span>{question.content}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
 
           <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Submitted code</h2>
