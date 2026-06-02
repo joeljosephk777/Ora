@@ -1,8 +1,6 @@
-import { anthropic } from "@/lib/anthropic";
+import { completeLLMResponse } from "@/lib/llm/gateway";
 import type { Database, Json } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const anthropicModel = process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest";
 
 type SessionRow = Database["public"]["Tables"]["sessions"]["Row"];
 type SubmissionRow = Database["public"]["Tables"]["submissions"]["Row"];
@@ -36,14 +34,6 @@ export type SessionReportContext = {
   studentProfile: Pick<ProfileRow, "id" | "email" | "full_name"> | null;
   report: ReportRow | null;
 };
-
-function extractAnthropicText(content: { type: string; text?: string }[]) {
-  return content
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text?.trim() ?? "")
-    .filter(Boolean)
-    .join("\n\n");
-}
 
 function stripCodeFence(value: string) {
   return value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -204,56 +194,51 @@ export async function generateAndSaveReport(
   supabase: SupabaseClient<Database>,
   sessionId: string
 ) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not configured.");
-  }
-
   const context = await loadSessionReportContext(supabase, sessionId);
 
   if (context.messages.length === 0) {
     throw new Error("This session has no transcript yet.");
   }
 
-  const prompt = [
-    "You are grading support for Ora, a comprehension-check platform for CS courses.",
-    "Review the transcript and assignment materials, then return strict JSON with these keys:",
-    'summary: string',
-    'strengths: string[]',
-    'weaknesses: string[]',
-    'rubricAlignment: Array<{ criterion: string; assessment: string; evidence: string; score: number | null }>',
-    'suggestedScore: number | null',
-    "",
-    "Scoring rules:",
-    "- suggestedScore should be a number from 0 to 100 when there is enough evidence.",
-    "- Keep summary concise and specific to the transcript.",
-    "- Strengths and weaknesses should be evidence-based.",
-    "- In rubricAlignment, use the rubric text to identify criteria when possible.",
-    "- Never invent facts that do not appear in the transcript or assignment materials.",
-    "",
-    `Assignment title: ${context.assignment.title}`,
-    `Assignment description:\n${context.assignment.description}`,
-    `Rubric:\n${context.assignment.rubric}`,
-    `Guiding questions:\n${formatGuidingQuestions(context.questions)}`,
-    `Student submission:\n${context.submission.code || "[No code was submitted in the MVP flow.]"}`,
-    `Transcript:\n${formatTranscript(context.messages)}`,
+  const systemPrompt = [
+    "Role: Ora grading support for CS comprehension interviews.",
+    "Return ONLY valid JSON. No markdown, prose, comments, or code fences.",
+    "Schema:",
+    '{"summary":"string","strengths":["string"],"weaknesses":["string"],"rubricAlignment":[{"criterion":"string","assessment":"string","evidence":"string","score":number|null}],"suggestedScore":number|null}',
+    "Rules:",
+    "- suggestedScore is 0-100 only when evidence is sufficient.",
+    "- rubricAlignment must map directly to rubric criteria where possible.",
+    "- Evidence must come from transcript/submission/materials only.",
+    "- Keep all fields concise and instructor-readable.",
   ].join("\n");
 
-  const response = await anthropic.messages.create({
-    model: anthropicModel,
-    max_tokens: 1400,
-    temperature: 0.2,
-    messages: [
+  const userPrompt = [
+    `[ASSIGNMENT]\n${context.assignment.title}\n${context.assignment.description}`,
+    `[RUBRIC]\n${context.assignment.rubric}`,
+    `[GUIDING QUESTIONS]\n${formatGuidingQuestions(context.questions)}`,
+    `[STUDENT CODE]\n${context.submission.code || "[No code was submitted in the MVP flow.]"}`,
+    `[TRANSCRIPT]\n${formatTranscript(context.messages)}`,
+  ].join("\n\n");
+
+  const responseText = await completeLLMResponse(
+    [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
       {
         role: "user",
-        content: prompt,
+        content: userPrompt,
       },
     ],
-  });
-
-  const responseText = extractAnthropicText(response.content);
+    {
+      maxTokens: 1400,
+      temperature: 0.1,
+    }
+  );
 
   if (!responseText) {
-    throw new Error("Anthropic returned an empty report.");
+    throw new Error("LLM provider returned an empty report.");
   }
 
   const parsed = parseGeneratedReport(responseText);

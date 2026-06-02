@@ -40,6 +40,12 @@ type ElevenLabsUsage = {
   refreshPeriod: string | null;
 };
 
+type ChatTelemetry = {
+  model: string | null;
+  provider: string | null;
+  latencyMs: string | null;
+};
+
 type ParsedMessageContent = {
   body: string;
   transcript: string | null;
@@ -124,6 +130,29 @@ function extractResponseMessage(payload: unknown) {
   return null;
 }
 
+function parseSsePayload(frame: string) {
+  const lines = frame.split("\n");
+  const eventName = lines
+    .find((line) => line.startsWith("event: "))
+    ?.slice(7)
+    .trim();
+  const data = lines
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => line.slice(6))
+    .join("\n");
+
+  if (!data) return null;
+
+  try {
+    return {
+      eventName,
+      payload: JSON.parse(data) as Record<string, unknown>,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getVoiceTranscriptLabel(transcript: string) {
   return `Voice note transcript:\n${transcript}`;
 }
@@ -169,6 +198,19 @@ function buildDisplayContent(message: string, transcribedMessage: string | null)
   if (message) return message;
   if (transcribedMessage) return getVoiceTranscriptLabel(transcribedMessage);
   return "";
+}
+
+function extractCodeBlocks(content: string) {
+  const snippets: string[] = [];
+  const pattern = /```(?:([\w-]+)\n)?([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    const codeSegment = match[2]?.trim();
+    if (codeSegment) snippets.push(codeSegment);
+  }
+
+  return snippets.join("\n\n---\n\n");
 }
 
 function splitMessageContent(content: string) {
@@ -239,6 +281,8 @@ export default function StudentSessionChat({
     durationMs: number;
     estimatedCredits: number;
   } | null>(null);
+  const [developerMode, setDeveloperMode] = useState(false);
+  const [lastTelemetry, setLastTelemetry] = useState<ChatTelemetry | null>(null);
   const [isUsageLoading, setIsUsageLoading] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -247,6 +291,7 @@ export default function StudentSessionChat({
   const audioChunksRef = useRef<Blob[]>([]);
   const objectUrlsRef = useRef<string[]>([]);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const sendInFlightRef = useRef(false);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({
@@ -369,6 +414,8 @@ export default function StudentSessionChat({
   }
 
   async function sendMessage(payload?: PendingPayload) {
+    if (sendInFlightRef.current) return;
+
     const optimisticId = payload?.messageId ?? `local-${Date.now()}`;
     const nextPayload = payload ?? {
       messageId: optimisticId,
@@ -380,6 +427,7 @@ export default function StudentSessionChat({
     if (!nextPayload.message && !nextPayload.recording) return;
 
     setIsSending(true);
+    sendInFlightRef.current = true;
     setError(null);
 
     if (!payload) {
@@ -410,28 +458,26 @@ export default function StudentSessionChat({
         transcribedMessage = await transcribeRecording(nextPayload.recording);
       }
 
-      const composedMessage = [
-        nextPayload.message,
-        transcribedMessage ? getVoiceTranscriptLabel(transcribedMessage) : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      const composedMessage = nextPayload.message || transcribedMessage || "";
 
       if (!composedMessage) {
         throw new Error("Add a typed response, code snippet, or voice note before sending.");
       }
 
       const displayContent = buildDisplayContent(nextPayload.message, transcribedMessage);
+      const associatedCodeSnippet = nextPayload.recording ? extractCodeBlocks(nextPayload.message) : "";
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(developerMode ? { "X-Developer-Mode": "true" } : {}),
         },
         body: JSON.stringify({
           sessionId,
-          message: composedMessage,
-          codeSnippet: null,
+          studentMessage: nextPayload.message || undefined,
+          voiceTranscription: transcribedMessage || undefined,
+          associatedCodeSnippet: associatedCodeSnippet || undefined,
           voiceAnnotation: nextPayload.recording
             ? {
                 durationMs: nextPayload.recording.durationMs,
@@ -440,6 +486,98 @@ export default function StudentSessionChat({
             : null,
         }),
       });
+
+      if (developerMode) {
+        setLastTelemetry({
+          model: response.headers.get("X-Dev-Model"),
+          provider: response.headers.get("X-Dev-Provider"),
+          latencyMs: response.headers.get("X-Dev-Latency-Ms"),
+        });
+      }
+
+      if (response.ok && response.body && response.headers.get("Content-Type")?.includes("text/event-stream")) {
+        const aiMessageId = `ai-${Date.now()}`;
+        let aiMessage = "";
+        let buffered = "";
+        const decoder = new TextDecoder();
+        const reader = response.body.getReader();
+
+        setMessages((current) => [
+          ...current.map((message) =>
+            message.id === optimisticId
+              ? {
+                  ...message,
+                  pending: false,
+                  content: displayContent,
+                }
+              : message
+          ),
+          {
+            id: aiMessageId,
+            role: "ai",
+            content: "",
+            createdAt: new Date().toISOString(),
+            pending: true,
+          },
+        ]);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffered += decoder.decode(value, { stream: true });
+          const frames = buffered.split("\n\n");
+          buffered = frames.pop() ?? "";
+
+          for (const frame of frames) {
+            const parsedFrame = parseSsePayload(frame);
+            if (!parsedFrame) continue;
+
+            if (parsedFrame.eventName === "error") {
+              throw new Error(extractResponseMessage(parsedFrame.payload) ?? "Ora failed while streaming.");
+            }
+
+            if (typeof parsedFrame.payload.delta === "string") {
+              aiMessage += parsedFrame.payload.delta;
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === aiMessageId
+                    ? {
+                        ...message,
+                        content: aiMessage,
+                      }
+                    : message
+                )
+              );
+            }
+          }
+        }
+
+        if (!aiMessage.trim()) {
+          throw new Error("Chat response did not include an AI reply.");
+        }
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === aiMessageId
+              ? {
+                  ...message,
+                  pending: false,
+                  content: aiMessage.trim(),
+                }
+              : message
+          )
+        );
+
+        if (payload && draft.trim() === nextPayload.message && recording?.url === nextPayload.recording?.url) {
+          setDraft("");
+          setRecording(null);
+          setDraftSourceId(null);
+        }
+
+        setLastFailedPayload(null);
+        return;
+      }
 
       const responseBody = await response.text();
       let parsedBody: unknown = null;
@@ -509,6 +647,7 @@ export default function StudentSessionChat({
             )
       );
     } finally {
+      sendInFlightRef.current = false;
       setIsSending(false);
     }
   }
@@ -884,8 +1023,33 @@ export default function StudentSessionChat({
               </button>
             )}
 
+            <button
+              type="button"
+              onClick={() => setDeveloperMode((current) => !current)}
+              className={`rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
+                developerMode
+                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+              }`}
+            >
+              Dev telemetry
+            </button>
+
             <span className="ml-auto text-xs text-slate-400">Enter to send · Shift+Enter for a new line</span>
           </div>
+
+          {developerMode && (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">
+                AI developer telemetry
+              </p>
+              <p className="mt-2 text-sm text-violet-800">
+                {lastTelemetry
+                  ? `Provider ${lastTelemetry.provider ?? "--"} · Model ${lastTelemetry.model ?? "--"} · First-byte ${lastTelemetry.latencyMs ?? "--"}ms`
+                  : "Adds X-Developer-Mode to the next /api/chat request and shows provider routing headers."}
+              </p>
+            </div>
+          )}
 
           {recording && (
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
