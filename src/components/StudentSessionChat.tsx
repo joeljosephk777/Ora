@@ -546,9 +546,13 @@ export default function StudentSessionChat({
                         ...message,
                         content: aiMessage,
                       }
-                    : message
+                  : message
                 )
               );
+            }
+
+            if (parsedFrame.payload.done === true && parsedFrame.payload.completed === true) {
+              setStatus("completed");
             }
           }
         }

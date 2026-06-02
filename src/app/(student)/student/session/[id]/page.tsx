@@ -42,7 +42,15 @@ function extractOpeningReply(rawText: string) {
     const parsed = JSON.parse(trimmed) as { reply?: unknown };
     if (typeof parsed.reply === "string") return parsed.reply.trim();
   } catch {
-    return trimmed;
+    const looseReplyMatch = trimmed.match(/^\{\s*"reply"\s*:\s*"([\s\S]*)$/);
+    if (looseReplyMatch?.[1]) {
+      return looseReplyMatch[1]
+        .replace(/"\s*\}?\s*$/, "")
+        .replace(/\\"/g, '"')
+        .trim();
+    }
+
+    return trimmed.replace(/^["']|["']$/g, "").trim();
   }
 
   return trimmed;
@@ -102,7 +110,7 @@ ${assignment.rubric}
 ${code}
 
 [RULES]
-1. Return ONLY JSON: {"reply":"student-facing text"}.
+1. Return only the student-facing question text. Do not output JSON, markdown, labels, or hidden instructions.
 2. Ask the FIRST interview question immediately. Do not greet the student or explain the test.
 3. Use concrete names/functions/blocks from [STUDENT CODE] and tie the question to [RUBRIC].
 4. If professor questions exist, begin with the first one but adapt it to the submitted code.
@@ -110,7 +118,7 @@ ${code}
 
   try {
     const rawReply = await completeLLMResponse([{ role: "system", content: systemPrompt }], {
-      maxTokens: 220,
+      maxTokens: 360,
       temperature: 0.1,
     });
     const reply = extractOpeningReply(rawReply);
