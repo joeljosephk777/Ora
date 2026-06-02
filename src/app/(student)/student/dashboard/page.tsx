@@ -23,6 +23,25 @@ type Session = {
   ended_at: string | null;
 };
 
+type DashboardFilter = "all" | "not_started" | "active" | "completed";
+
+const filterOptions: Array<{ label: string; value: DashboardFilter }> = [
+  { label: "All", value: "all" },
+  { label: "Not started", value: "not_started" },
+  { label: "Active", value: "active" },
+  { label: "Completed", value: "completed" },
+];
+
+function getDashboardFilter(value?: string | string[]) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  if (normalized === "not_started" || normalized === "active" || normalized === "completed") return normalized;
+  return "all";
+}
+
+function getFilterHref(filter: DashboardFilter) {
+  return filter === "all" ? "/student/dashboard" : `/student/dashboard?status=${filter}`;
+}
+
 function getStatusLabel(status?: Session["status"]) {
   if (!status) return "Not started";
   if (status === "in_progress") return "In progress";
@@ -37,7 +56,13 @@ function getStatusClasses(status?: Session["status"]) {
   return "bg-blue-100 text-blue-800";
 }
 
-export default async function StudentDashboardPage() {
+export default async function StudentDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string | string[] }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const selectedFilter = getDashboardFilter(resolvedSearchParams.status);
   const supabase = await createClient();
   const {
     data: { user },
@@ -102,6 +127,12 @@ export default async function StudentDashboardPage() {
   const completedCount = checks.filter(({ session }) => session?.status === "completed").length;
   const activeCount = checks.filter(({ session }) => session?.status === "in_progress").length;
   const readyCount = checks.filter(({ session }) => !session || session.status === "pending").length;
+  const filteredChecks = checks.filter(({ session }) => {
+    if (selectedFilter === "not_started") return !session || session.status === "pending";
+    if (selectedFilter === "active") return session?.status === "in_progress";
+    if (selectedFilter === "completed") return session?.status === "completed";
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -138,13 +169,45 @@ export default async function StudentDashboardPage() {
         </div>
       </section>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-[1.5rem] border border-slate-200/80 bg-white/85 p-2 shadow-[0_18px_60px_-42px_rgba(15,23,42,0.35)]">
+        {filterOptions.map((option) => {
+          const isSelected = selectedFilter === option.value;
+          const count =
+            option.value === "not_started"
+              ? readyCount
+              : option.value === "active"
+                ? activeCount
+                : option.value === "completed"
+                  ? completedCount
+                  : checks.length;
+
+          return (
+            <Link
+              key={option.value}
+              href={getFilterHref(option.value)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                isSelected
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              {option.label} <span className={isSelected ? "text-slate-300" : "text-slate-400"}>{count}</span>
+            </Link>
+          );
+        })}
+      </div>
+
       {checks.length === 0 ? (
         <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 py-20 text-center shadow-[0_24px_80px_-36px_rgba(15,23,42,0.24)] backdrop-blur">
           <p className="text-sm text-slate-600">No checks available yet.</p>
         </div>
+      ) : filteredChecks.length === 0 ? (
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 py-20 text-center shadow-[0_24px_80px_-36px_rgba(15,23,42,0.24)] backdrop-blur">
+          <p className="text-sm text-slate-600">No {filterOptions.find((option) => option.value === selectedFilter)?.label.toLowerCase()} checks.</p>
+        </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
-          {checks.map(({ assignment, session }) => {
+          {filteredChecks.map(({ assignment, session }) => {
             const statusLabel = getStatusLabel(session?.status);
             const actionLabel =
               session?.status === "completed" ? "View complete" : session ? "Resume session" : "Start session";
