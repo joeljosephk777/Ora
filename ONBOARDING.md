@@ -9,7 +9,8 @@ AI-powered comprehension checks for UW CS courses. Instructors can't reliably ve
 ### Prerequisites
 - Node.js 18+
 - A Supabase account (free tier is fine) → [supabase.com](https://supabase.com)
-- An Anthropic API key → [console.anthropic.com](https://console.anthropic.com)
+- An OpenRouter API key → [openrouter.ai](https://openrouter.ai)
+- An ElevenLabs API key for voice transcription → [elevenlabs.io](https://elevenlabs.io)
 
 ### 1. Clone and install
 ```bash
@@ -26,7 +27,10 @@ Fill in `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=      # Settings → API → Project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY= # Settings → API → anon/public key
-ANTHROPIC_API_KEY=             # console.anthropic.com
+OPENROUTER_API_KEY=            # openrouter.ai
+OPENROUTER_MODEL=              # optional; defaults to nvidia/nemotron-3-super-120b-a12b:free
+LLM_PROVIDER=openrouter        # optional; defaults to openrouter
+ELEVENLABS_API_KEY=            # elevenlabs.io, used by /api/transcribe and usage telemetry
 ```
 
 ### 3. Run the database migration
@@ -49,7 +53,7 @@ App runs at [http://localhost:3000](http://localhost:3000)
 | Framework | Next.js 16 (App Router) | Full-stack, deploys on Vercel, great Supabase integration |
 | Styling | Tailwind CSS | Utility-first, fast iteration |
 | Database / Auth / Storage | Supabase (Postgres) | Relational data model + Row-Level Security for multi-tenant access |
-| AI | Anthropic Claude API | Conversational interview, question generation, report generation |
+| AI | OpenRouter LLM gateway | Conversational interview streaming, provider routing, report generation |
 | Language | TypeScript | Strict mode enabled throughout |
 
 ---
@@ -83,7 +87,7 @@ Ora/
 │   │   ├── supabase/
 │   │   │   ├── client.ts        # Browser Supabase client
 │   │   │   └── server.ts        # Server Supabase client (reads auth from cookies)
-│   │   └── anthropic.ts         # Anthropic client singleton
+│   │   └── llm/                 # Provider-neutral LLM gateway + OpenRouter driver
 │   ├── proxy.ts                 # Route protection middleware (Next.js 16)
 │   └── types/
 │       └── database.ts          # TypeScript types for all DB tables
@@ -194,6 +198,9 @@ src/proxy.ts
 - [x] Added a more LLM-style conversation experience with clearer empty states, message hierarchy, and in-thread "Ora is responding" feedback.
 - [x] Reworked the composer with Enter-to-send, Shift+Enter for new lines, code/voice tools, inline retry handling, and honest "use as draft" behavior instead of misleading transcript editing.
 - [x] Polished the surrounding student flow so the dashboard, session, and completion screens feel visually consistent and easier to navigate.
+- [x] Updated the chat client to consume `/api/chat` Server-Sent Events so Ora's reply streams into the transcript while the backend saves the final assistant message.
+- [x] Added a developer telemetry toggle that sends `X-Developer-Mode: true` and displays provider/model/latency headers for internal AI routing checks.
+- [x] Updated voice-note sends to forward `voiceTranscription` separately from typed text and attach pasted code blocks as `associatedCodeSnippet` context for backend prompt isolation.
 
 The student-facing flow: from receiving a link to completing the AI interview.
 
@@ -235,8 +242,9 @@ src/app/(student)/session/[id]/complete/page.tsx
 
 The AI engine and the reporting/grading interface.
 
-- `/api/chat` route — takes session ID + student message, calls Claude, returns AI response, saves both messages to DB
-- `/api/reports/generate` route — takes session ID, generates full report (summary, rubric alignment, strengths/weaknesses, suggested score), saves to DB
+- `src/lib/llm/gateway.ts` + `src/lib/llm/providers/openrouter.ts` — provider-neutral LLM boundary backed by OpenRouter; defaults to `nvidia/nemotron-3-super-120b-a12b:free` and reads credentials from `OPENROUTER_API_KEY`
+- `/api/chat` route — takes session ID plus typed text and/or `voiceTranscription`, writes structured `[TEXT CHAT MESSAGE]`, `[VOICE OVER AUDIO TRANSCRIPTION]`, and `[ANNOTATED CODE SNIPPET]` sections immediately, hydrates only needed assignment/submission/question/transcript fields, streams one-question-at-a-time Ora responses over SSE, saves the completed AI reply to DB, and emits developer telemetry headers when requested
+- `/api/reports/generate` route — takes session ID, generates strict JSON via the LLM gateway, maps rubric alignment/strengths/weaknesses/summary into the `reports` table, and saves an advisory suggested score
 - Professor report review page (read transcript, set final score)
 - TA report review page (same as professor view)
 

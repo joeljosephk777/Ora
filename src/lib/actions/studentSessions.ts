@@ -19,10 +19,6 @@ export async function submitCodeAndStartSession(
 
   const code = (formData.get("code") as string | null)?.trim() ?? "";
 
-  if (!code) {
-    return { error: "Add your code before starting the interview." };
-  }
-
   const { data: assignment } = await supabase
     .from("assignments")
     .select("id")
@@ -51,7 +47,7 @@ export async function submitCodeAndStartSession(
       .limit(1)
       .maybeSingle();
 
-    if (existingSession && existingSession.status !== "completed" && latestSubmission.code.trim()) {
+    if (existingSession && existingSession.status !== "completed") {
       redirect(`/student/session/${existingSession.id}`);
     }
   }

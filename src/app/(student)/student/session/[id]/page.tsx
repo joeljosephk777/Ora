@@ -25,6 +25,22 @@ type MessageRow = {
   created_at: string;
 };
 
+function getOpeningQuestion({
+  assignmentTitle,
+  code,
+  questions,
+}: {
+  assignmentTitle: string;
+  code: string;
+  questions: QuestionRow[];
+}) {
+  if (!code.trim()) {
+    return `Before we start the interview, paste a code snippet or implementation related to "${assignmentTitle}" so I can ask about your actual work.`;
+  }
+
+  return questions[0]?.content ?? "Start by walking me through the main idea of your implementation.";
+}
+
 function statusClasses(status: SessionRow["status"]) {
   if (status === "completed") return "bg-emerald-100 text-emerald-800";
   if (status === "in_progress") return "bg-amber-100 text-amber-800";
@@ -62,10 +78,6 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
 
   if (!submission) notFound();
 
-  if (!submission.code.trim()) {
-    redirect(`/student/assignments/${submission.assignment_id}/submit`);
-  }
-
   const [{ data: assignment }, { data: questions }, { data: messages }] = await Promise.all([
     supabase
       .from("assignments")
@@ -86,7 +98,62 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
 
   if (!assignment) notFound();
 
-  const initialMessages: InitialChatMessage[] = ((messages ?? []) as MessageRow[]).map((message) => ({
+  const typedQuestions = (questions ?? []) as QuestionRow[];
+  let typedMessages = (messages ?? []) as MessageRow[];
+
+  if (typedMessages.length === 0) {
+    const openingContent = getOpeningQuestion({
+      assignmentTitle: assignment.title,
+      code: submission.code,
+      questions: typedQuestions,
+    });
+    const { data: latestMessages } = await supabase
+      .from("messages")
+      .select("id, role, content, created_at")
+      .eq("session_id", session.id)
+      .order("created_at")
+      .limit(1);
+
+    typedMessages = (latestMessages ?? []) as MessageRow[];
+
+    if (typedMessages.length > 0) {
+      const initialMessages: InitialChatMessage[] = typedMessages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.created_at,
+      }));
+
+      const completeAction = completeSession.bind(null, session.id);
+
+      return (
+        <StudentSessionPageContent
+          assignment={assignment}
+          completeAction={completeAction}
+          initialMessages={initialMessages}
+          session={session}
+          submissionCode={submission.code}
+          typedQuestions={typedQuestions}
+        />
+      );
+    }
+
+    const { data: openingMessage } = await supabase
+      .from("messages")
+      .insert({
+        session_id: session.id,
+        role: "ai",
+        content: openingContent,
+      })
+      .select("id, role, content, created_at")
+      .single();
+
+    if (openingMessage) {
+      typedMessages = [openingMessage as MessageRow];
+    }
+  }
+
+  const initialMessages: InitialChatMessage[] = typedMessages.map((message) => ({
     id: message.id,
     role: message.role,
     content: message.content,
@@ -94,7 +161,39 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
   }));
 
   const completeAction = completeSession.bind(null, session.id);
-  const typedQuestions = (questions ?? []) as QuestionRow[];
+
+  return (
+    <StudentSessionPageContent
+      assignment={assignment}
+      completeAction={completeAction}
+      initialMessages={initialMessages}
+      session={session}
+      submissionCode={submission.code}
+      typedQuestions={typedQuestions}
+    />
+  );
+}
+
+function StudentSessionPageContent({
+  assignment,
+  completeAction,
+  initialMessages,
+  session,
+  submissionCode,
+  typedQuestions,
+}: {
+  assignment: {
+    id: string;
+    title: string;
+    description: string;
+    rubric: string;
+  };
+  completeAction: () => Promise<void>;
+  initialMessages: InitialChatMessage[];
+  session: SessionRow;
+  submissionCode: string;
+  typedQuestions: QuestionRow[];
+}) {
 
   return (
     <div className="space-y-6">
@@ -198,7 +297,7 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
           <section className="rounded-[1.75rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_24px_70px_-40px_rgba(15,23,42,0.24)] backdrop-blur">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Submitted code</h2>
             <pre className="mt-3 max-h-[360px] overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">
-              <code>{submission.code}</code>
+              <code>{submissionCode.trim() ? submissionCode : "No code has been submitted yet."}</code>
             </pre>
           </section>
         </aside>
