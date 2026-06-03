@@ -28,7 +28,7 @@ Fill in `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=      # Settings → API → Project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY= # Settings → API → anon/public key
 OPENROUTER_API_KEY=            # openrouter.ai
-OPENROUTER_MODEL=              # optional; defaults to nvidia/nemotron-3-super-120b-a12b:free
+OPENROUTER_MODEL=              # optional; defaults to nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 LLM_PROVIDER=openrouter        # optional; defaults to openrouter
 ELEVENLABS_API_KEY=            # elevenlabs.io, used by /api/transcribe and usage telemetry
 ```
@@ -247,7 +247,7 @@ src/app/(student)/student/session/[id]/complete/page.tsx
 
 The AI engine and the reporting/grading interface.
 
-- `src/lib/llm/gateway.ts` + `src/lib/llm/providers/openrouter.ts` — provider-neutral LLM boundary backed by OpenRouter; defaults to `nvidia/nemotron-3-super-120b-a12b:free` and reads credentials from `OPENROUTER_API_KEY`
+- `src/lib/llm/gateway.ts` + `src/lib/llm/providers/openrouter.ts` — provider-neutral LLM boundary backed by OpenRouter; defaults to `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` and reads credentials from `OPENROUTER_API_KEY`
 - `/api/chat` route — takes session ID plus typed text and/or `voiceTranscription`, writes structured `[TEXT CHAT MESSAGE]`, `[VOICE OVER AUDIO TRANSCRIPTION]`, and `[ANNOTATED CODE SNIPPET]` sections immediately, hydrates only needed assignment/submission/question/transcript fields, streams one-question-at-a-time Ora responses over SSE, saves the completed AI reply to DB, and emits developer telemetry headers when requested
 - Interview completion guard — Ora asks the first question automatically, follows the professor's guiding questions, sends the exact completion message when done, and only then unlocks the student's final submission
 - ElevenLabs transcription support — `/api/transcribe` converts student voice notes into text, and the UI displays usage/credit estimates after recordings

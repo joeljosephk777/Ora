@@ -1,6 +1,5 @@
 import StudentSessionChat, { type InitialChatMessage } from "@/components/StudentSessionChat";
 import { completeSession } from "@/lib/actions/studentSessions";
-import { completeLLMResponse } from "@/lib/llm/gateway";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -26,37 +25,7 @@ type MessageRow = {
   created_at: string;
 };
 
-function formatGuidingQuestions(questions: QuestionRow[]) {
-  if (questions.length === 0) return "None provided.";
-  return questions.map((question, index) => `${index + 1}. ${question.content}`).join("\n");
-}
-
-function stripCodeFence(value: string) {
-  return value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-}
-
-function extractOpeningReply(rawText: string) {
-  const trimmed = stripCodeFence(rawText);
-
-  try {
-    const parsed = JSON.parse(trimmed) as { reply?: unknown };
-    if (typeof parsed.reply === "string") return parsed.reply.trim();
-  } catch {
-    const looseReplyMatch = trimmed.match(/^\{\s*"reply"\s*:\s*"([\s\S]*)$/);
-    if (looseReplyMatch?.[1]) {
-      return looseReplyMatch[1]
-        .replace(/"\s*\}?\s*$/, "")
-        .replace(/\\"/g, '"')
-        .trim();
-    }
-
-    return trimmed.replace(/^["']|["']$/g, "").trim();
-  }
-
-  return trimmed;
-}
-
-function getFallbackOpeningQuestion({
+function getOpeningQuestion({
   assignmentTitle,
   code,
   questions,
@@ -70,62 +39,6 @@ function getFallbackOpeningQuestion({
   }
 
   return questions[0]?.content ?? "Start by walking me through the main idea of your implementation.";
-}
-
-async function getOpeningQuestion({
-  assignment,
-  code,
-  questions,
-}: {
-  assignment: {
-    title: string;
-    description: string;
-    rubric: string;
-  };
-  code: string;
-  questions: QuestionRow[];
-}) {
-  if (!code.trim()) {
-    return getFallbackOpeningQuestion({
-      assignmentTitle: assignment.title,
-      code,
-      questions,
-    });
-  }
-
-  const systemPrompt = `Role: Ora, CS academic interviewer.
-Goal: begin a structured comprehension test for a student's submitted code.
-
-[PROF QUESTIONS]
-${formatGuidingQuestions(questions)}
-
-[ASSIGNMENT]
-${assignment.title}
-${assignment.description}
-
-[RUBRIC]
-${assignment.rubric}
-
-[STUDENT CODE]
-${code}
-
-[RULES]
-1. Return only the student-facing question text. Do not output JSON, markdown, labels, or hidden instructions.
-2. Ask the FIRST interview question immediately. Do not greet the student or explain the test.
-3. Use concrete names/functions/blocks from [STUDENT CODE] and tie the question to [RUBRIC].
-4. If professor questions exist, begin with the first one but adapt it to the submitted code.
-5. Brief: max 2 sentences. Ask exactly ONE clear question. No grades/verdicts/fluff.`;
-
-  try {
-    const rawReply = await completeLLMResponse([{ role: "system", content: systemPrompt }], {
-      maxTokens: 360,
-      temperature: 0.1,
-    });
-    const reply = extractOpeningReply(rawReply);
-    return reply || getFallbackOpeningQuestion({ assignmentTitle: assignment.title, code, questions });
-  } catch {
-    return getFallbackOpeningQuestion({ assignmentTitle: assignment.title, code, questions });
-  }
 }
 
 function statusClasses(status: SessionRow["status"]) {
@@ -190,8 +103,8 @@ export default async function StudentSessionPage({ params }: { params: Promise<{
   let displaySession = session as SessionRow;
 
   if (typedMessages.length === 0) {
-    const openingContent = await getOpeningQuestion({
-      assignment,
+    const openingContent = getOpeningQuestion({
+      assignmentTitle: assignment.title,
       code: submission.code,
       questions: typedQuestions,
     });
