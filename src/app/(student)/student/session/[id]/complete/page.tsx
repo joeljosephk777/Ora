@@ -39,6 +39,14 @@ export default async function StudentSessionCompletePage({
 
   if (!assignment) notFound();
 
+  const { data: report } = await supabase
+    .from("reports")
+    .select("final_score, reviewed_at")
+    .eq("session_id", session.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
     <div className="flex min-h-[72vh] items-center justify-center">
       <div className="w-full max-w-4xl rounded-[2.25rem] border border-slate-200/80 bg-white/85 p-8 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
@@ -65,8 +73,13 @@ export default async function StudentSessionCompletePage({
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Next step</p>
-            <p className="mt-2 text-sm font-medium text-slate-900">Wait for instructor review and feedback.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Final score</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {report?.final_score === null || report?.final_score === undefined ? "Pending review" : `${report.final_score}/100`}
+            </p>
+            {report?.reviewed_at && (
+              <p className="mt-1 text-xs text-slate-500">Reviewed {new Date(report.reviewed_at).toLocaleDateString()}</p>
+            )}
           </div>
         </div>
 
@@ -75,8 +88,8 @@ export default async function StudentSessionCompletePage({
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">What happens next</h2>
             <ol className="mt-4 space-y-4 text-sm leading-6 text-slate-600">
               <li>Your session transcript stays available if you want to review what you submitted.</li>
-              <li>Ora’s conversation can be used alongside the rubric and report generation flow.</li>
-              <li>If your course staff needs anything else, they can follow up after reviewing the transcript.</li>
+              <li>Your instructor can review the transcript and assign a final score manually.</li>
+              <li>Once the final score is saved, it appears on this page.</li>
             </ol>
           </section>
 

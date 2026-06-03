@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { isCompletionReply } from "@/lib/interviewCompletion";
 import { useEffect, useRef, useState } from "react";
 
 export type InitialChatMessage = {
@@ -57,6 +58,7 @@ type Props = {
   assignmentTitle: string;
   initialStatus: "pending" | "in_progress" | "completed";
   initialMessages: InitialChatMessage[];
+  completeAction: () => Promise<void>;
 };
 
 function getRecordingTimeLabel(durationMs: number) {
@@ -238,11 +240,18 @@ function splitMessageContent(content: string) {
   return segments.length > 0 ? segments : [{ type: "text" as const, value: content }];
 }
 
-function getStatusMeta(status: Props["initialStatus"]) {
+function getStatusMeta(status: Props["initialStatus"], interviewComplete: boolean) {
   if (status === "completed") {
     return {
       badgeClasses: "border border-emerald-200 bg-emerald-50 text-emerald-700",
       label: "Completed",
+    };
+  }
+
+  if (interviewComplete) {
+    return {
+      badgeClasses: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+      label: "Ready to submit",
     };
   }
 
@@ -264,10 +273,15 @@ export default function StudentSessionChat({
   assignmentTitle,
   initialStatus,
   initialMessages,
+  completeAction,
 }: Props) {
   const [supabase] = useState(() => createClient());
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState(initialStatus);
+  const [interviewComplete, setInterviewComplete] = useState(
+    initialStatus === "completed" ||
+      initialMessages.some((message) => message.role === "ai" && isCompletionReply(message.content))
+  );
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState<RecordingAttachment | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -552,7 +566,7 @@ export default function StudentSessionChat({
             }
 
             if (parsedFrame.payload.done === true && parsedFrame.payload.completed === true) {
-              setStatus("completed");
+              setInterviewComplete(true);
             }
           }
         }
@@ -752,7 +766,7 @@ export default function StudentSessionChat({
   }
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter" || event.shiftKey || isSending || status === "completed") return;
+    if (event.key !== "Enter" || event.shiftKey || isSending || status === "completed" || interviewComplete) return;
 
     event.preventDefault();
     if (!draft.trim() && !recording) return;
@@ -766,9 +780,10 @@ export default function StudentSessionChat({
     }
     return null;
   })();
-  const canSend = !isSending && status !== "completed" && Boolean(draft.trim() || recording);
-  const statusMeta = getStatusMeta(status);
+  const canSend = !isSending && status !== "completed" && !interviewComplete && Boolean(draft.trim() || recording);
+  const statusMeta = getStatusMeta(status, interviewComplete);
   const messageCount = messages.filter((message) => !message.pending).length;
+  const hasPendingAiMessage = messages.some((message) => message.role === "ai" && message.pending);
   const usagePercent = getUsagePercent(elevenLabsUsage);
   const resetLabel = getResetLabel(elevenLabsUsage?.nextResetUnix ?? null);
   const refreshPeriodLabel = getRefreshPeriodLabel(elevenLabsUsage?.refreshPeriod ?? null);
@@ -834,7 +849,11 @@ export default function StudentSessionChat({
               const parsedContent = parseMessageContent(message.content);
               const hasMainBody = Boolean(parsedContent.body);
               const showReuseAction =
-                isStudent && !message.pending && status !== "completed" && message.id === latestStudentMessageId;
+                isStudent &&
+                !message.pending &&
+                status !== "completed" &&
+                !interviewComplete &&
+                message.id === latestStudentMessageId;
 
               return (
                 <div key={message.id} className={`flex ${isStudent ? "justify-end" : "justify-start"}`}>
@@ -897,6 +916,8 @@ export default function StudentSessionChat({
                             </p>
                           )
                         )
+                      ) : !isStudent && message.pending ? (
+                        <p className="text-sm leading-7 text-slate-600">Ora is responding...</p>
                       ) : (
                         <p className={`text-sm leading-7 ${isStudent ? "text-slate-100" : "text-slate-600"}`}>
                           Voice note attached.
@@ -947,7 +968,7 @@ export default function StudentSessionChat({
               );
             })}
 
-            {isSending && (
+            {isSending && !hasPendingAiMessage && (
               <div className="flex justify-start">
                 <div className="w-full max-w-xl rounded-[1.75rem] border border-slate-200/80 bg-white/95 px-5 py-4 text-slate-900 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.35)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Ora</p>
@@ -992,7 +1013,7 @@ export default function StudentSessionChat({
             <button
               type="button"
               onClick={insertCodeBlock}
-              disabled={isSending || status === "completed"}
+              disabled={isSending || status === "completed" || interviewComplete}
               className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
             >
               Insert code block
@@ -1010,7 +1031,7 @@ export default function StudentSessionChat({
               <button
                 type="button"
                 onClick={startRecording}
-                disabled={status === "completed"}
+                disabled={status === "completed" || interviewComplete}
                 className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
               >
                 {recording ? "Replace voice note" : "Add voice note"}
@@ -1131,35 +1152,56 @@ export default function StudentSessionChat({
             <p className="text-sm text-amber-700">Microphone access is unavailable in this browser session.</p>
           )}
 
-          <div className="rounded-[1.75rem] border border-slate-200/80 bg-slate-50/85 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-            <textarea
-              ref={composerRef}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              rows={1}
-              disabled={isSending || status === "completed"}
-              placeholder="Type your answer here. Paste code directly, use Insert code block for formatting, or attach a voice note when it is easier to explain aloud."
-              className="min-h-[120px] w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-7 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
-            />
-
-            <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-200/80 px-2 pt-3">
-              <p className="max-w-xl text-xs leading-5 text-slate-500">
-                Ora keeps the interview focused with one follow-up question at a time, so concise and concrete answers
-                work best.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  void sendMessage();
-                }}
-                disabled={!canSend}
-                className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {isSending ? "Ora is responding..." : "Send message"}
-              </button>
+          {status === "completed" ? (
+            <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-5 py-4">
+              <p className="text-sm font-medium text-emerald-900">This session has been submitted for instructor review.</p>
             </div>
-          </div>
+          ) : interviewComplete ? (
+            <div className="flex flex-col gap-3 rounded-[1.75rem] border border-emerald-200 bg-emerald-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-emerald-900">Ora has completed the interview.</p>
+                <p className="mt-1 text-sm text-emerald-700">Submit the session when you are ready to send it for review.</p>
+              </div>
+              <form action={completeAction}>
+                <button
+                  type="submit"
+                  className="rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-800"
+                >
+                  Submit session
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="rounded-[1.75rem] border border-slate-200/80 bg-slate-50/85 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+              <textarea
+                ref={composerRef}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                rows={1}
+                disabled={isSending}
+                placeholder="Type your answer here. Paste code directly, use Insert code block for formatting, or attach a voice note when it is easier to explain aloud."
+                className="min-h-[120px] w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-7 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
+              />
+
+              <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-200/80 px-2 pt-3">
+                <p className="max-w-xl text-xs leading-5 text-slate-500">
+                  Ora keeps the interview focused with one follow-up question at a time, so concise and concrete answers
+                  work best.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void sendMessage();
+                  }}
+                  disabled={!canSend}
+                  className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {isSending ? "Ora is responding..." : "Send message"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>

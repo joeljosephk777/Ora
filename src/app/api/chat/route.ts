@@ -1,4 +1,5 @@
 import { completeLLMResponse, getLLMModel } from "@/lib/llm/gateway";
+import { COMPLETION_REPLY, isCompletionReply } from "@/lib/interviewCompletion";
 import type { ChatMessage } from "@/lib/llm/gateway";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
@@ -15,9 +16,6 @@ type ChatRequestBody = {
     mimeType?: string;
   } | null;
 };
-
-const COMPLETION_REPLY =
-  "That completes the interview. Submit your session when you are ready for instructor review.";
 
 function toAssistantHistoryRole(role: "ai" | "student"): ChatMessage["role"] {
   return role === "ai" ? "assistant" : "user";
@@ -40,11 +38,6 @@ function isSubstantiveAnswer(value: string) {
     .filter(Boolean);
 
   return words.length >= 25 || value.trim().length >= 160;
-}
-
-function isCompletionReply(reply: string) {
-  const normalized = reply.toLowerCase();
-  return normalized.includes("that completes the interview") && normalized.includes("submit your session");
 }
 
 function formatStudentPayload({
@@ -296,17 +289,7 @@ export async function POST(request: Request) {
             throw new Error(aiInsertError.message);
           }
 
-          const { error: sessionCompleteError } = await supabase
-            .from("sessions")
-            .update({
-              status: "completed",
-              ended_at: new Date().toISOString(),
-            })
-            .eq("id", sessionId);
-
-          if (sessionCompleteError) {
-            throw new Error(sessionCompleteError.message);
-          }
+          return;
         },
       });
 
@@ -381,19 +364,7 @@ Latest answer was ${latestAnswerIsSubstantive ? "substantive" : "shallow/brief"}
           throw new Error(aiInsertError.message);
         }
 
-        if (completedByModel) {
-          const { error: sessionCompleteError } = await supabase
-            .from("sessions")
-            .update({
-              status: "completed",
-              ended_at: new Date().toISOString(),
-            })
-            .eq("id", sessionId);
-
-          if (sessionCompleteError) {
-            throw new Error(sessionCompleteError.message);
-          }
-        }
+        return;
       },
     });
 

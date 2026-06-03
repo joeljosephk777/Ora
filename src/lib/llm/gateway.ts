@@ -9,6 +9,7 @@ export type LLMOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  responseFormat?: "json_object";
 };
 
 function getProvider() {
