@@ -34,16 +34,19 @@ async function callOpenRouter(messages: ChatMessage[], options: LLMOptions | und
     throw new Error("OPENROUTER_API_KEY is not configured.");
   }
 
+  const payload = {
+    model: getModel(options),
+    messages,
+    temperature: options?.temperature ?? 0.1,
+    max_tokens: options?.maxTokens ?? (stream ? 175 : 1000),
+    stream,
+    ...(options?.responseFormat ? { response_format: { type: options.responseFormat } } : {}),
+  };
+
   const response = await fetch(openRouterUrl, {
     method: "POST",
     headers: getHeaders(apiKey),
-    body: JSON.stringify({
-      model: getModel(options),
-      messages,
-      temperature: options?.temperature ?? 0.1,
-      max_tokens: options?.maxTokens ?? (stream ? 175 : 1000),
-      stream,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

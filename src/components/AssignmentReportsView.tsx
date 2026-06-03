@@ -1,3 +1,4 @@
+import { generateAndSaveReport, reportNeedsRegeneration } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -16,6 +17,13 @@ function formatScore(score: number | null | undefined) {
   return score === null || score === undefined ? "--" : `${score}/100`;
 }
 
+function getSummaryPreview(summary: string | null | undefined) {
+  if (!summary) return null;
+  const firstSection = summary.split(/\n\s*\n/)[0]?.trim() ?? summary.trim();
+  if (firstSection.length <= 180) return firstSection;
+  return `${firstSection.slice(0, 177).trimEnd()}...`;
+}
+
 function getStatusClasses(status: SessionSummary["status"]) {
   if (status === "completed") return "bg-emerald-100 text-emerald-800";
   if (status === "in_progress") return "bg-amber-100 text-amber-800";
@@ -26,6 +34,12 @@ function getStatusLabel(status: SessionSummary["status"]) {
   if (status === "completed") return "Completed";
   if (status === "in_progress") return "In progress";
   return "Pending";
+}
+
+function getReportStatusLabel(session: SessionSummary, hasReport: boolean) {
+  if (hasReport) return "Report ready";
+  if (session.status === "completed") return "Report pending";
+  return "Report creates after completion";
 }
 
 export default async function AssignmentReportsView({
@@ -93,7 +107,7 @@ export default async function AssignmentReportsView({
       ? await Promise.all([
           supabase
             .from("reports")
-            .select("id, session_id, suggested_score, final_score, created_at")
+            .select("id, session_id, summary, rubric_alignment, suggested_score, final_score, created_at")
             .in("session_id", sessionIds)
             .order("created_at", { ascending: false }),
           supabase.from("profiles").select("id, email, full_name").in("id", studentIds),
@@ -110,7 +124,30 @@ export default async function AssignmentReportsView({
   if (messagesError) throw new Error(messagesError.message);
 
   const studentById = new Map((students ?? []).map((student) => [student.id, student]));
-  const latestReportBySessionId = new Map((reports ?? []).map((report) => [report.session_id, report]));
+  let reportsForRows = reports ?? [];
+  let latestReportBySessionId = new Map(reportsForRows.map((report) => [report.session_id, report]));
+
+  const staleOrMissingReportSessions = (sessions ?? []).filter(
+    (session) => session.status === "completed" && reportNeedsRegeneration(latestReportBySessionId.get(session.id) ?? null)
+  );
+
+  if (staleOrMissingReportSessions.length > 0) {
+    await Promise.allSettled(
+      staleOrMissingReportSessions.map((session) => generateAndSaveReport(supabase, session.id))
+    );
+
+    const { data: refreshedReports, error: refreshedReportsError } = await supabase
+      .from("reports")
+      .select("id, session_id, summary, rubric_alignment, suggested_score, final_score, created_at")
+      .in("session_id", sessionIds)
+      .order("created_at", { ascending: false });
+
+    if (refreshedReportsError) throw new Error(refreshedReportsError.message);
+
+    reportsForRows = refreshedReports ?? [];
+    latestReportBySessionId = new Map(reportsForRows.map((report) => [report.session_id, report]));
+  }
+
   const messageCountBySessionId = new Map<string, number>();
 
   for (const message of messages ?? []) {
@@ -151,43 +188,61 @@ export default async function AssignmentReportsView({
         </div>
       ) : (
         <div className="space-y-4">
-          {rows.map(({ session, report, student, submittedAt, messageCount }) => (
-            <Link
-              key={session.id}
-              href={`${basePath}/assignments/${assignmentId}/reports/${session.id}`}
-              className="block rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-indigo-300 hover:shadow-sm"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold text-gray-900">
-                      {student?.full_name || student?.email || "Student session"}
-                    </h2>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(session.status)}`}>
-                      {getStatusLabel(session.status)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500">{student?.email ?? "Student details unavailable"}</p>
-                  <div className="flex flex-wrap gap-4 text-xs text-gray-400">
-                    <span>{submittedAt ? `Submitted ${new Date(submittedAt).toLocaleString()}` : "Submission pending"}</span>
-                    <span>{messageCount} transcript messages</span>
-                    <span>{report ? "Report ready" : "Report not generated yet"}</span>
-                  </div>
-                </div>
+          {rows.map(({ session, report, student, submittedAt, messageCount }) => {
+            const summaryPreview = getSummaryPreview(report?.summary);
 
-                <div className="grid min-w-[220px] grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Suggested</p>
-                    <p className="mt-2 text-lg font-semibold text-gray-900">{formatScore(report?.suggested_score)}</p>
+            return (
+              <Link
+                key={session.id}
+                href={`${basePath}/assignments/${assignmentId}/reports/${session.id}`}
+                className="block rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-indigo-300 hover:shadow-sm"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-semibold text-gray-900">
+                          {student?.full_name || student?.email || "Student session"}
+                        </h2>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(session.status)}`}>
+                          {getStatusLabel(session.status)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500">{student?.email ?? "Student details unavailable"}</p>
+                      <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+                        <span>{submittedAt ? `Submitted ${new Date(submittedAt).toLocaleString()}` : "Submission pending"}</span>
+                        <span>{messageCount} transcript messages</span>
+                        <span>{getReportStatusLabel(session, Boolean(report))}</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Discussion summary
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-gray-700">
+                        {summaryPreview ??
+                          (session.status === "completed"
+                            ? "Report generation runs automatically after completion. The summary will appear here when ready."
+                            : "The discussion summary will appear automatically after the student completes the interview.")}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Final</p>
-                    <p className="mt-2 text-lg font-semibold text-gray-900">{formatScore(report?.final_score)}</p>
+
+                  <div className="grid min-w-[220px] grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Suggested</p>
+                      <p className="mt-2 text-lg font-semibold text-gray-900">{formatScore(report?.suggested_score)}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Final</p>
+                      <p className="mt-2 text-lg font-semibold text-gray-900">{formatScore(report?.final_score)}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

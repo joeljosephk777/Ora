@@ -324,17 +324,6 @@ function StudentSessionPageContent({
               concrete parts of your code, and answer one follow-up question at a time.
             </p>
           </div>
-
-          {session.status !== "completed" && (
-            <form action={completeAction}>
-              <button
-                type="submit"
-                className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
-              >
-                Complete session
-              </button>
-            </form>
-          )}
         </div>
 
         <div className="mt-6 grid gap-3 lg:grid-cols-2">
@@ -353,7 +342,7 @@ function StudentSessionPageContent({
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">3. Finish clearly</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              When you are satisfied with the transcript, complete the session to send it for instructor review.
+              After Ora completes the interview, submit the session to send it for instructor review.
             </p>
           </div>
         </div>
@@ -365,6 +354,7 @@ function StudentSessionPageContent({
           initialStatus={session.status}
           initialMessages={initialMessages}
           assignmentTitle={assignment.title}
+          completeAction={completeAction}
         />
 
         <aside className="space-y-4 xl:sticky xl:top-24">

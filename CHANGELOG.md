@@ -14,6 +14,17 @@ Track what each person ships. Add a line when you merge something.
 
 ---
 
+## 2026-06-03
+
+- **Neil** - Switched AI calls to the OpenRouter gateway/env setup and removed the need for Anthropic credentials
+- **Neil** - Made Ora ask the first interview question automatically after code submission
+- **Neil** - Limited interview progression to the professor's guiding questions, then unlocks student submission only after Ora completes the interview
+- **Neil** - Added student dashboard session filters for not started, active, and completed checks
+- **Neil** - Hid rubric and guiding questions from the student interview screen while keeping them available to Ora
+- **Neil** - Added ElevenLabs voice transcription usage estimates and account usage display after voice notes
+- **Neil** - Added automatic report generation after student submission, suggested scores, rubric sub-scores, concise interview summaries, and student final-score visibility
+- **Neil** - Fixed duplicate final "Ora is responding" UI and blocked early session submission before the interview is complete
+
 ## 2026-05-15
 
 - **Neil** - Added ElevenLabs speech-to-text for student voice notes, wired transcription into chat submission, and fixed the client parsing bug during testing

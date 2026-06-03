@@ -12,7 +12,7 @@ With AI coding tools widely available, instructors and TAs cannot reliably tell 
 
 ## What is Ora?
 
-Ora is a web app that gives UW CS instructors a scalable way to verify student comprehension of coding assignments. An AI conducts a structured text-based conversation with each student about their submitted code, asking questions tailored to the assignment rubric. The session is recorded and transcribed into a report for the TA or professor to review and grade — with an AI-suggested score to guide them.
+Ora is a web app that gives UW CS instructors a scalable way to verify student comprehension of coding assignments. An AI conducts a structured text-based conversation with each student about their submitted code, asking questions tailored to the assignment rubric and instructor guiding questions. After the interview is complete, Ora generates a concise report for the TA or professor to review and grade, including an AI-suggested score and rubric alignment.
 
 **Humans stay in the loop.** Ora generates a suggested score, but the final grade is always made by the instructor or TA.
 
@@ -31,14 +31,16 @@ Ora is a web app that gives UW CS instructors a scalable way to verify student c
 
 1. Student receives a link and logs in
 2. Student submits their code
-3. The AI conducts a text-based chat session, asking comprehension questions about the code
-4. The conversation is automatically recorded and transcribed
+3. Ora automatically asks the first interview question
+4. The student answers one focused question at a time, using text, pasted code, or voice notes
+5. The student can submit the session only after Ora completes the interview
 
 ### Phase 3 — Review & Grading
 
 1. The TA or professor receives a transcript report for each student
-2. The report includes an AI-suggested score based on the rubric
+2. The report includes a concise discussion summary, strengths, needs-review items, rubric sub-scores, and an AI-suggested score
 3. The instructor reviews the transcript and makes the final grading decision
+4. Students can see the final score after the instructor or TA enters it
 
 ---
 

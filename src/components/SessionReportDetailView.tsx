@@ -1,5 +1,5 @@
-import { generateReportActionForBasePath, saveFinalScoreActionForBasePath } from "@/lib/actions/reports";
-import { loadSessionReportContext } from "@/lib/reports";
+import { saveFinalScoreActionForBasePath } from "@/lib/actions/reports";
+import { generateAndSaveReport, loadSessionReportContext, reportNeedsRegeneration } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import Link from "next/link";
@@ -84,14 +84,25 @@ export default async function SessionReportDetailView({
 
   if (assignmentAccessError || !assignmentAccess) notFound();
 
-  const context = await loadSessionReportContext(supabase, sessionId);
+  let context = await loadSessionReportContext(supabase, sessionId);
 
   if (context.assignment.id !== assignmentId) notFound();
+
+  if (context.session.status === "completed" && reportNeedsRegeneration(context.report)) {
+    try {
+      const generated = await generateAndSaveReport(supabase, sessionId);
+      context = {
+        ...generated.context,
+        report: generated.report,
+      };
+    } catch (reportError) {
+      console.warn(reportError instanceof Error ? reportError.message : "Failed to generate missing report.");
+    }
+  }
 
   const routeBase = basePath.slice(1) as "professor" | "ta";
   const report = context.report;
   const rubricAlignment = parseRubricAlignment(report?.rubric_alignment ?? null);
-  const generateAction = generateReportActionForBasePath.bind(null, routeBase, assignmentId, sessionId);
   const saveFinalScore = saveFinalScoreActionForBasePath.bind(null, routeBase, assignmentId, sessionId);
 
   return (
@@ -111,14 +122,6 @@ export default async function SessionReportDetailView({
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(context.session.status)}`}>
             {getStatusLabel(context.session.status)}
           </span>
-          <form action={generateAction}>
-            <button
-              type="submit"
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-            >
-              {report ? "Regenerate report" : "Generate report"}
-            </button>
-          </form>
         </div>
       </div>
 
@@ -161,7 +164,11 @@ export default async function SessionReportDetailView({
           <section className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Rubric alignment</h2>
             {rubricAlignment.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-500">Generate a report to see criterion-by-criterion analysis.</p>
+              <p className="mt-4 text-sm text-gray-500">
+                {context.session.status === "completed"
+                  ? "Report generation is automatic after completion. If this stays empty, the AI provider may still be processing or may have failed."
+                  : "Criterion-by-criterion analysis will appear after the student completes the session."}
+              </p>
             ) : (
               <div className="mt-4 space-y-4">
                 {rubricAlignment.map((item, index) => (
@@ -183,9 +190,14 @@ export default async function SessionReportDetailView({
 
         <aside className="space-y-6">
           <section className="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Report summary</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Discussion summary & understanding
+            </h2>
             <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
-              {report?.summary ?? "Generate a report to see the AI summary, strengths, and weaknesses."}
+              {report?.summary ??
+                (context.session.status === "completed"
+                  ? "Report generation is automatic after completion. If this stays empty, the AI provider may still be processing or may have failed."
+                  : "The AI summary, strengths, and weaknesses will appear after the student completes the session.")}
             </p>
           </section>
 

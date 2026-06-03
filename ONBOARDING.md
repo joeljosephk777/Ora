@@ -148,8 +148,8 @@ const supabase = createClient();
 Understanding this is key before building any feature:
 
 1. **Professor setup** — professor logs in, creates an assignment with a description, rubric, and guiding questions
-2. **Student session** — student receives a link, submits their code, completes an AI text-chat comprehension interview
-3. **TA/professor review** — reads an auto-generated transcript report, sets the final grade
+2. **Student session** — student receives a link, submits code, answers Ora's guided interview, then submits only after Ora says the interview is complete
+3. **TA/professor review** — reads an automatically generated transcript report with suggested scoring, then sets the final grade
 
 **Privacy rule:** Transcripts are used for grading only — never for AI training or any other purpose.
 **Grading rule:** Ora suggests a score, the human always makes the final call.
@@ -201,6 +201,10 @@ src/proxy.ts
 - [x] Updated the chat client to consume `/api/chat` Server-Sent Events so Ora's reply streams into the transcript while the backend saves the final assistant message.
 - [x] Added a developer telemetry toggle that sends `X-Developer-Mode: true` and displays provider/model/latency headers for internal AI routing checks.
 - [x] Updated voice-note sends to forward `voiceTranscription` separately from typed text and attach pasted code blocks as `associatedCodeSnippet` context for backend prompt isolation.
+- [x] Added student dashboard filters for all, not started, active, and completed sessions.
+- [x] Removed rubric and guiding questions from the student interview view; students only see the assignment description and their submitted code.
+- [x] Moved final submission into the chat footer and unlock it only after Ora sends the completion message.
+- [x] Added final score visibility on the student completion screen after professor/TA grading.
 
 The student-facing flow: from receiving a link to completing the AI interview.
 
@@ -216,15 +220,16 @@ The student-facing flow: from receiving a link to completing the AI interview.
   - Add an annotation flow where a student can attach a voiceover recording to a pasted code snippet
   - Show recording, attached-snippet, loading, and retry/error states in the UI
 - Session complete / thank you screen
-  - Mark the session as completed
+  - Mark the session as completed only after Ora finishes the interview
   - Show a confirmation screen after the interview is finished
-  - Provide a clear next-step message so students know what happens after submission
+  - Show the instructor's final score once it has been entered
 
 **Pages to build:**
 ```
-src/app/(student)/dashboard/page.tsx
-src/app/(student)/session/[id]/page.tsx
-src/app/(student)/session/[id]/complete/page.tsx
+src/app/(student)/student/dashboard/page.tsx
+src/app/(student)/student/assignments/[id]/submit/page.tsx
+src/app/(student)/student/session/[id]/page.tsx
+src/app/(student)/student/session/[id]/complete/page.tsx
 ```
 
 **Future module (not MVP):** Code submission page
@@ -244,16 +249,25 @@ The AI engine and the reporting/grading interface.
 
 - `src/lib/llm/gateway.ts` + `src/lib/llm/providers/openrouter.ts` — provider-neutral LLM boundary backed by OpenRouter; defaults to `nvidia/nemotron-3-super-120b-a12b:free` and reads credentials from `OPENROUTER_API_KEY`
 - `/api/chat` route — takes session ID plus typed text and/or `voiceTranscription`, writes structured `[TEXT CHAT MESSAGE]`, `[VOICE OVER AUDIO TRANSCRIPTION]`, and `[ANNOTATED CODE SNIPPET]` sections immediately, hydrates only needed assignment/submission/question/transcript fields, streams one-question-at-a-time Ora responses over SSE, saves the completed AI reply to DB, and emits developer telemetry headers when requested
+- Interview completion guard — Ora asks the first question automatically, follows the professor's guiding questions, sends the exact completion message when done, and only then unlocks the student's final submission
+- ElevenLabs transcription support — `/api/transcribe` converts student voice notes into text, and the UI displays usage/credit estimates after recordings
 - `/api/reports/generate` route — takes session ID, generates strict JSON via the LLM gateway, maps rubric alignment/strengths/weaknesses/summary into the `reports` table, and saves an advisory suggested score
-- Professor report review page (read transcript, set final score)
-- TA report review page (same as professor view)
+- Automatic report generation — when a student submits a completed interview, Ora creates or refreshes the report without requiring the professor to click "generate report"
+- Report quality guardrails — invalid AI JSON, model planning text, and old generic fallback summaries are rejected; fallback reports now analyze transcript concepts against rubric/guiding questions and include rubric sub-scores
+- Professor report review page — read transcript, view concise AI summary/suggested score/rubric alignment, and set final score
+- TA report review page — same review flow as professor view
 
 **Files to build:**
 ```
 src/app/api/chat/route.ts
+src/app/api/transcribe/route.ts
 src/app/api/reports/generate/route.ts
 src/app/(professor)/assignments/[id]/reports/page.tsx
 src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
+src/components/AssignmentReportsView.tsx
+src/components/SessionReportDetailView.tsx
+src/lib/reports.ts
+src/lib/interviewCompletion.ts
 ```
 
 ---
@@ -273,8 +287,8 @@ src/app/(professor)/assignments/[id]/reports/[sessionId]/page.tsx
 |---|-----------|-------|--------|
 | 1 | Planning & Setup — repo, tech stack, DB schema | All | **Done** |
 | 2 | Auth + Professor Assignment Setup | Joel | **Done** |
-| 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv | — |
-| 4 | AI Report Generation — backend + grading UI | Neil | — |
+| 3 | Student Walkthrough MVP — code upload + AI interview UI | Garv / Neil | **Done** |
+| 4 | AI Report Generation — backend + grading UI | Neil | **Done** |
 | 5 | Testing — QA with real CS assignments | All | — |
 | 6 | Final Deployment — Vercel, public site, presentation | All | — |
 
