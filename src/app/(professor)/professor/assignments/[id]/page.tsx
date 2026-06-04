@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatPacificDate } from "@/lib/formatDate";
 import { deleteAssignment } from "@/lib/actions/assignments";
 import DeleteButton from "@/components/DeleteButton";
 import Link from "next/link";
@@ -46,7 +47,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
           </Link>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">{assignment.title}</h1>
           <p className="text-xs text-gray-400 mt-1">
-            Created {new Date(assignment.created_at).toLocaleDateString()}
+            Created {formatPacificDate(assignment.created_at)}
           </p>
         </div>
         <div className="flex gap-3 mt-6">

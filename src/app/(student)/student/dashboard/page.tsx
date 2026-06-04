@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatPacificDate } from "@/lib/formatDate";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -250,7 +251,7 @@ export default async function StudentDashboardPage({
 
                 <div className="flex items-center justify-between gap-3 pt-1">
                   <span className="text-xs text-slate-400">
-                    {new Date(assignment.created_at).toLocaleDateString()}
+                    {formatPacificDate(assignment.created_at)}
                   </span>
                   <Link
                     href={actionHref}

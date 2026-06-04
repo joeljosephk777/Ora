@@ -1,6 +1,5 @@
 "use server";
 
-import { generateAndSaveReport } from "@/lib/reports";
 import { isCompletionReply } from "@/lib/interviewCompletion";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -50,7 +49,11 @@ export async function submitCodeAndStartSession(
       .maybeSingle();
 
     if (existingSession && existingSession.status !== "completed") {
-      redirect(`/student/session/${existingSession.id}`);
+      redirect(
+        existingSession.status === "pending"
+          ? `/student/session/${existingSession.id}/intro`
+          : `/student/session/${existingSession.id}`
+      );
     }
   }
 
@@ -81,7 +84,7 @@ export async function submitCodeAndStartSession(
     throw new Error(sessionError?.message ?? "Failed to create session");
   }
 
-  redirect(`/student/session/${session.id}`);
+  redirect(`/student/session/${session.id}/intro`);
 }
 
 export async function startSession(assignmentId: string) {
@@ -150,12 +153,6 @@ export async function completeSession(sessionId: string) {
 
   if (error) {
     throw new Error(error.message);
-  }
-
-  try {
-    await generateAndSaveReport(supabase, sessionId);
-  } catch (reportError) {
-    console.warn(reportError instanceof Error ? reportError.message : "Failed to generate completion report.");
   }
 
   redirect(`/student/session/${sessionId}/complete`);

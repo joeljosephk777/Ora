@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <div className="fixed right-5 top-5 z-50">
+          <ThemeToggle />
+        </div>
+        {children}
+      </body>
     </html>
   );
 }

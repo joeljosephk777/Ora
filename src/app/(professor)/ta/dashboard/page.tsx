@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatPacificDate } from "@/lib/formatDate";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -49,7 +50,7 @@ export default async function TaDashboardPage() {
                   <p className="mt-1 text-sm text-gray-500 line-clamp-2">{assignment.description}</p>
                 </div>
                 <span className="shrink-0 text-xs text-gray-400">
-                  {new Date(assignment.created_at).toLocaleDateString()}
+                  {formatPacificDate(assignment.created_at)}
                 </span>
               </div>
             </Link>

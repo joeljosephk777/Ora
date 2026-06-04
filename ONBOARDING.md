@@ -224,6 +224,9 @@ src/proxy.ts
 - [x] Removed rubric and guiding questions from the student interview view; students only see the assignment description and their submitted code.
 - [x] Moved final submission into the chat footer and unlock it only after Ora sends the completion message.
 - [x] Added final score visibility on the student completion screen after professor/TA grading.
+- [x] Added a global dark-mode toggle and a shared dark compatibility layer so non-landing pages render with readable surfaces, borders, and text.
+- [x] Standardized visible app timestamps through `src/lib/formatDate.ts` so student/professor screens display Pacific time.
+- [x] Added ChatGPT-style Ora typing dots as soon as the student message is ready to send, plus a submit-session spinner while the completion action redirects.
 
 The student-facing flow: from receiving a link to completing the AI interview.
 
@@ -273,10 +276,11 @@ The AI engine and the reporting/grading interface.
 - Explanation follow-up guard — if a student answers a guiding/professor question with only a result, complexity, return value, or short claim, Ora scores the response for relevance, detail, reasoning structure, code behavior, and cause/effect explanation before moving on; explanation keywords like "because", "this is because", and "due to" help but are not required
 - ElevenLabs transcription support — `/api/transcribe` converts student voice notes into text, and the UI displays usage/credit estimates after recordings
 - `/api/reports/generate` route — takes session ID, generates strict JSON via the LLM gateway, maps rubric alignment/strengths/weaknesses/summary into the `reports` table, and saves an advisory suggested score
-- Automatic report generation — when a student submits a completed interview, Ora creates or refreshes the report without requiring the professor to click "generate report"
+- Deferred report generation — student submission now only marks the session complete and redirects; professor/TA report pages create or refresh missing/stale reports so students are not blocked by LLM report latency
 - Report quality guardrails — invalid AI JSON, model planning text, and old generic fallback summaries are rejected; fallback reports now analyze transcript concepts against rubric/guiding questions and include rubric sub-scores
-- Professor report review page — read transcript, view concise AI summary/suggested score/rubric alignment, and set final score
+- Professor report review page — read transcript, view concise AI summary/suggested score/rubric alignment, and set final score; assignment report rows preserve the newest report per session so saved final scores do not appear pending because of older duplicate reports
 - TA report review page — same review flow as professor view
+- Report UI polish — removed generated rubric-alignment subtext/evidence from the detailed report cards because it could read awkwardly or truncate in the professor summary view
 
 **Files to build:**
 ```

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatPacificDate } from "@/lib/formatDate";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
                   <p className="mt-1 text-sm text-gray-500 line-clamp-2">{a.description}</p>
                 </div>
                 <span className="ml-4 shrink-0 text-xs text-gray-400">
-                  {new Date(a.created_at).toLocaleDateString()}
+                  {formatPacificDate(a.created_at)}
                 </span>
               </div>
             </Link>
