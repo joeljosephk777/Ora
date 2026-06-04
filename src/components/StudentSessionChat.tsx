@@ -1,7 +1,9 @@
 "use client";
 
+import { formatPacificDate, formatPacificTime } from "@/lib/formatDate";
 import { isCompletionReply } from "@/lib/interviewCompletion";
 import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 export type InitialChatMessage = {
   id: string;
@@ -38,12 +40,6 @@ type ElevenLabsUsage = {
   characterLimit: number | null;
   nextResetUnix: number | null;
   refreshPeriod: string | null;
-};
-
-type ChatTelemetry = {
-  model: string | null;
-  provider: string | null;
-  latencyMs: string | null;
 };
 
 type ParsedMessageContent = {
@@ -98,10 +94,40 @@ function getRecordedUsagePercent(durationMs: number) {
 function getResetLabel(nextResetUnix: number | null) {
   if (!nextResetUnix) return null;
 
-  return new Date(nextResetUnix * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return formatPacificDate(nextResetUnix * 1000);
+}
+
+function OraTypingIndicator() {
+  return (
+    <div className="flex items-center gap-3 text-sm text-slate-600">
+      <span className="flex gap-1" aria-hidden="true">
+        <span className="h-2 w-2 animate-bounce rounded-full bg-sky-500 [animation-delay:-0.24s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-sky-500 [animation-delay:-0.12s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-sky-500" />
+      </span>
+      <span>Ora is thinking</span>
+    </div>
+  );
+}
+
+function SubmitSessionButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-75"
+    >
+      {pending && (
+        <span
+          className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+          aria-hidden="true"
+        />
+      )}
+      {pending ? "Submitting..." : "Submit session"}
+    </button>
+  );
 }
 
 function getRefreshPeriodLabel(refreshPeriod: string | null) {
@@ -293,8 +319,6 @@ export default function StudentSessionChat({
     durationMs: number;
     estimatedCredits: number;
   } | null>(null);
-  const [developerMode, setDeveloperMode] = useState(false);
-  const [lastTelemetry, setLastTelemetry] = useState<ChatTelemetry | null>(null);
   const [isUsageLoading, setIsUsageLoading] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -447,6 +471,7 @@ export default function StudentSessionChat({
     }
 
     let transcribedMessage = nextPayload.transcribedMessage;
+    let aiMessageId: string | null = null;
 
     try {
       if (status === "pending") setStatus("in_progress");
@@ -463,12 +488,32 @@ export default function StudentSessionChat({
 
       const displayContent = buildDisplayContent(nextPayload.message, transcribedMessage);
       const associatedCodeSnippet = nextPayload.recording ? extractCodeBlocks(nextPayload.message) : "";
+      const pendingAiMessageId = `ai-${Date.now()}`;
+      aiMessageId = pendingAiMessageId;
+
+      setMessages((current) => [
+        ...current.map((message) =>
+          message.id === optimisticId
+            ? {
+                ...message,
+                pending: false,
+                content: displayContent,
+              }
+            : message
+        ),
+        {
+          id: pendingAiMessageId,
+          role: "ai",
+          content: "",
+          createdAt: new Date().toISOString(),
+          pending: true,
+        },
+      ]);
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(developerMode ? { "X-Developer-Mode": "true" } : {}),
         },
         body: JSON.stringify({
           sessionId,
@@ -484,39 +529,11 @@ export default function StudentSessionChat({
         }),
       });
 
-      if (developerMode) {
-        setLastTelemetry({
-          model: response.headers.get("X-Dev-Model"),
-          provider: response.headers.get("X-Dev-Provider"),
-          latencyMs: response.headers.get("X-Dev-Latency-Ms"),
-        });
-      }
-
       if (response.ok && response.body && response.headers.get("Content-Type")?.includes("text/event-stream")) {
-        const aiMessageId = `ai-${Date.now()}`;
         let aiMessage = "";
         let buffered = "";
         const decoder = new TextDecoder();
         const reader = response.body.getReader();
-
-        setMessages((current) => [
-          ...current.map((message) =>
-            message.id === optimisticId
-              ? {
-                  ...message,
-                  pending: false,
-                  content: displayContent,
-                }
-              : message
-          ),
-          {
-            id: aiMessageId,
-            role: "ai",
-            content: "",
-            createdAt: new Date().toISOString(),
-            pending: true,
-          },
-        ]);
 
         while (true) {
           const { done, value } = await reader.read();
@@ -617,23 +634,23 @@ export default function StudentSessionChat({
         throw new Error("Chat response did not include an AI reply.");
       }
 
-      setMessages((current) => [
-        ...current.map((message) =>
+      setMessages((current) =>
+        current.map((message) =>
           message.id === optimisticId
             ? {
                 ...message,
                 pending: false,
                 content: displayContent,
               }
-            : message
-        ),
-        {
-          id: `ai-${Date.now()}`,
-          role: "ai",
-          content: aiMessage,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+            : message.id === aiMessageId
+              ? {
+                  ...message,
+                  pending: false,
+                  content: aiMessage,
+                }
+              : message
+        )
+      );
 
       if (payload && draft.trim() === nextPayload.message && recording?.url === nextPayload.recording?.url) {
         setDraft("");
@@ -649,17 +666,17 @@ export default function StudentSessionChat({
       });
       setError(sendError instanceof Error ? sendError.message : "Failed to send message.");
       setMessages((current) =>
-        payload
-          ? current
-          : current.map((message) =>
-              message.id === optimisticId
-                ? {
-                    ...message,
-                    pending: false,
-                    content: buildDisplayContent(nextPayload.message, transcribedMessage) || message.content,
-                  }
-                : message
-            )
+        current
+          .filter((message) => message.id !== aiMessageId)
+          .map((message) =>
+            !payload && message.id === optimisticId
+              ? {
+                  ...message,
+                  pending: false,
+                  content: buildDisplayContent(nextPayload.message, transcribedMessage) || message.content,
+                }
+              : message
+          )
       );
     } finally {
       sendInFlightRef.current = false;
@@ -786,7 +803,7 @@ export default function StudentSessionChat({
   const shouldShowVoiceUsage = Boolean(recording || lastVoiceUsage || elevenLabsUsage || isUsageLoading);
 
   return (
-    <section className="flex min-h-[760px] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur">
+    <section className="flex min-h-[760px] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/85 shadow-[0_20px_70px_-42px_rgba(15,23,42,0.35)] backdrop-blur">
       <div className="border-b border-slate-200/80 bg-white/80 px-6 py-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -810,11 +827,11 @@ export default function StudentSessionChat({
 
       <div
         ref={transcriptRef}
-        className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.94)_0%,rgba(241,245,249,0.86)_100%)] px-4 py-5 sm:px-6"
+        className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.94)_0%,rgba(241,245,249,0.86)_100%)] px-3 py-6 dark:bg-[linear-gradient(180deg,rgba(51,65,85,0.8)_0%,rgba(39,52,72,0.9)_100%)] sm:px-6 lg:px-8"
       >
         {messages.length === 0 && !isSending ? (
           <div className="flex h-full items-center justify-center">
-            <div className="w-full max-w-2xl rounded-[2rem] border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-[0_24px_60px_-44px_rgba(15,23,42,0.35)]">
+            <div className="w-full max-w-3xl rounded-[2rem] border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-[0_20px_54px_-44px_rgba(15,23,42,0.35)]">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Ready when you are</p>
               <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Start with how you approached the assignment</h3>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-600">
@@ -839,7 +856,7 @@ export default function StudentSessionChat({
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl space-y-5">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             {messages.map((message) => {
               const isStudent = message.role === "student";
               const parsedContent = parseMessageContent(message.content);
@@ -852,17 +869,26 @@ export default function StudentSessionChat({
                 message.id === latestStudentMessageId;
 
               return (
-                <div key={message.id} className={`flex ${isStudent ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={message.id}
+                  className={`flex w-full ${
+                    isStudent ? "justify-end pl-8 sm:pl-20 lg:pl-28" : "justify-start pr-8 sm:pr-20 lg:pr-28"
+                  }`}
+                >
                   <div
-                    className={`w-full max-w-2xl rounded-[1.75rem] px-5 py-4 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.35)] ${
+                    className={`w-fit rounded-[1.35rem] px-5 py-4 shadow-sm ring-1 ring-inset ${
                       isStudent
-                        ? "bg-slate-900 text-white"
-                        : "border border-slate-200/80 bg-white/95 text-slate-900"
+                        ? "max-w-[min(38rem,100%)] bg-slate-900 text-white ring-slate-900/5 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/70"
+                        : "max-w-[min(46rem,100%)] bg-white/95 text-slate-900 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-slate-700/80"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-200" : "text-slate-500"}`}>
+                        <span
+                          className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                            isStudent ? "text-slate-200" : "text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
                           {isStudent ? "You" : "Ora"}
                         </span>
                         {showReuseAction && (
@@ -879,13 +905,12 @@ export default function StudentSessionChat({
                           </button>
                         )}
                       </div>
-                      <span className={`text-xs ${isStudent ? "text-slate-300" : "text-slate-400"}`}>
+                      <span className={`text-xs ${isStudent ? "text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
                         {message.pending
-                          ? "Sending..."
-                          : new Date(message.createdAt).toLocaleTimeString([], {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
+                          ? isStudent
+                            ? "Sending..."
+                            : "Thinking..."
+                          : formatPacificTime(message.createdAt)}
                       </span>
                     </div>
 
@@ -896,7 +921,7 @@ export default function StudentSessionChat({
                             <pre
                               key={`${message.id}-code-${index}`}
                               className={`overflow-x-auto rounded-2xl p-4 text-xs leading-relaxed ${
-                                isStudent ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-slate-100"
+                                isStudent ? "bg-slate-800 text-slate-100 dark:bg-slate-800/80" : "bg-slate-950 text-slate-100"
                               }`}
                             >
                               <code>{segment.value}</code>
@@ -905,7 +930,7 @@ export default function StudentSessionChat({
                             <p
                               key={`${message.id}-text-${index}`}
                               className={`whitespace-pre-wrap text-sm leading-7 ${
-                                isStudent ? "text-white" : "text-slate-700"
+                                isStudent ? "text-white" : "text-slate-700 dark:text-slate-200"
                               }`}
                             >
                               {segment.value}
@@ -913,9 +938,9 @@ export default function StudentSessionChat({
                           )
                         )
                       ) : !isStudent && message.pending ? (
-                        <p className="text-sm leading-7 text-slate-600">Ora is responding...</p>
+                        <OraTypingIndicator />
                       ) : (
-                        <p className={`text-sm leading-7 ${isStudent ? "text-slate-100" : "text-slate-600"}`}>
+                        <p className={`text-sm leading-7 ${isStudent ? "text-slate-100" : "text-slate-600 dark:text-slate-300"}`}>
                           Voice note attached.
                         </p>
                       )}
@@ -924,13 +949,17 @@ export default function StudentSessionChat({
                     {parsedContent.transcript && (
                       <div
                         className={`mt-4 rounded-2xl px-4 py-3 ${
-                          isStudent ? "bg-slate-800/90" : "bg-slate-50"
+                          isStudent ? "bg-slate-800/90 dark:bg-slate-600/70" : "bg-slate-50 dark:bg-slate-700/60"
                         }`}
                       >
                         <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-300" : "text-slate-500"}`}>
                           Voice transcript
                         </p>
-                        <p className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${isStudent ? "text-slate-100" : "text-slate-600"}`}>
+                        <p
+                          className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
+                            isStudent ? "text-slate-100" : "text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
                           {parsedContent.transcript}
                         </p>
                       </div>
@@ -939,7 +968,9 @@ export default function StudentSessionChat({
                     {!message.recording && parsedContent.attachmentNote && (
                       <div
                         className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
-                          isStudent ? "bg-slate-800/90 text-slate-200" : "bg-slate-50 text-slate-600"
+                          isStudent
+                            ? "bg-slate-800/90 text-slate-200 dark:bg-slate-600/70 dark:text-slate-100"
+                            : "bg-slate-50 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
                         }`}
                       >
                         {parsedContent.attachmentNote}
@@ -947,7 +978,7 @@ export default function StudentSessionChat({
                     )}
 
                     {message.recording && (
-                      <div className={`mt-4 rounded-2xl p-4 ${isStudent ? "bg-slate-800/90" : "bg-slate-50"}`}>
+                      <div className={`mt-4 rounded-2xl p-4 ${isStudent ? "bg-slate-800/90 dark:bg-slate-600/70" : "bg-slate-50 dark:bg-slate-700/60"}`}>
                         <div className="flex items-center justify-between gap-3">
                           <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isStudent ? "text-slate-300" : "text-slate-500"}`}>
                             Voice note
@@ -969,7 +1000,7 @@ export default function StudentSessionChat({
       </div>
 
       <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
-        <div className="mx-auto max-w-3xl space-y-4">
+        <div className="mx-auto w-full max-w-4xl space-y-4">
           {draftSourceId && (
             <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
               You are revising your latest answer in the composer. Sending will add a new message and keep the
@@ -1034,33 +1065,8 @@ export default function StudentSessionChat({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => setDeveloperMode((current) => !current)}
-              className={`rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
-                developerMode
-                  ? "border-violet-200 bg-violet-50 text-violet-700"
-                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-              }`}
-            >
-              Dev telemetry
-            </button>
-
             <span className="ml-auto text-xs text-slate-400">Enter to send · Shift+Enter for a new line</span>
           </div>
-
-          {developerMode && (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">
-                AI developer telemetry
-              </p>
-              <p className="mt-2 text-sm text-violet-800">
-                {lastTelemetry
-                  ? `Provider ${lastTelemetry.provider ?? "--"} · Model ${lastTelemetry.model ?? "--"} · First-byte ${lastTelemetry.latencyMs ?? "--"}ms`
-                  : "Adds X-Developer-Mode to the next /api/chat request and shows provider routing headers."}
-              </p>
-            </div>
-          )}
 
           {recording && (
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
@@ -1149,12 +1155,7 @@ export default function StudentSessionChat({
                 <p className="mt-1 text-sm text-emerald-700">Submit the session when you are ready to send it for review.</p>
               </div>
               <form action={completeAction}>
-                <button
-                  type="submit"
-                  className="rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-800"
-                >
-                  Submit session
-                </button>
+                <SubmitSessionButton />
               </form>
             </div>
           ) : (

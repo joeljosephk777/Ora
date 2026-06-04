@@ -1,4 +1,5 @@
 import { saveFinalScoreActionForBasePath } from "@/lib/actions/reports";
+import { formatPacificDateTime } from "@/lib/formatDate";
 import { generateAndSaveReport, loadSessionReportContext, reportNeedsRegeneration } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
@@ -144,12 +145,14 @@ export default async function SessionReportDetailView({
                     <div
                       key={message.id}
                       className={`rounded-xl border px-4 py-3 ${
-                        isStudent ? "border-indigo-200 bg-indigo-50" : "border-gray-200 bg-gray-50"
+                        isStudent
+                          ? "border-indigo-200 bg-indigo-50 dark:border-sky-300/35 dark:bg-sky-950/35"
+                          : "border-gray-200 bg-gray-50 dark:border-slate-600/60 dark:bg-slate-800/55"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-medium text-gray-900">{isStudent ? "Student" : "Ora"}</span>
-                        <span className="text-xs text-gray-400">{new Date(message.created_at).toLocaleString()}</span>
+                        <span className="text-xs text-gray-400">{formatPacificDateTime(message.created_at)}</span>
                       </div>
                       <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
                         {message.content}
@@ -179,8 +182,6 @@ export default async function SessionReportDetailView({
                         {formatScore(item.score) === "--" ? "No subscore" : formatScore(item.score)}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-gray-700">{item.assessment}</p>
-                    <p className="mt-3 text-xs leading-relaxed text-gray-500">{item.evidence}</p>
                   </div>
                 ))}
               </div>
@@ -240,7 +241,7 @@ export default async function SessionReportDetailView({
             </form>
 
             {report?.reviewed_at && (
-              <p className="mt-3 text-xs text-gray-400">Last reviewed {new Date(report.reviewed_at).toLocaleString()}</p>
+              <p className="mt-3 text-xs text-gray-400">Last reviewed {formatPacificDateTime(report.reviewed_at)}</p>
             )}
           </section>
 

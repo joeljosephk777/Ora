@@ -1,5 +1,7 @@
 import { generateAndSaveReport, reportNeedsRegeneration } from "@/lib/reports";
+import { formatPacificDateTime } from "@/lib/formatDate";
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/types/database";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -40,6 +42,38 @@ function getReportStatusLabel(session: SessionSummary, hasReport: boolean) {
   if (hasReport) return "Report ready";
   if (session.status === "completed") return "Report pending";
   return "Report creates after completion";
+}
+
+type ReportSummary = {
+  id: string;
+  session_id: string;
+  summary: string | null;
+  rubric_alignment: Json | null;
+  suggested_score: number | null;
+  final_score: number | null;
+  created_at: string;
+};
+
+function getBestReportBySessionId(reports: ReportSummary[]) {
+  const reportBySessionId = new Map<string, ReportSummary>();
+
+  for (const report of reports) {
+    const existingReport = reportBySessionId.get(report.session_id);
+
+    if (!existingReport) {
+      reportBySessionId.set(report.session_id, report);
+      continue;
+    }
+
+    const currentReportIsReady = !reportNeedsRegeneration(report);
+    const existingReportIsReady = !reportNeedsRegeneration(existingReport);
+
+    if (currentReportIsReady && !existingReportIsReady) {
+      reportBySessionId.set(report.session_id, report);
+    }
+  }
+
+  return reportBySessionId;
 }
 
 export default async function AssignmentReportsView({
@@ -125,10 +159,10 @@ export default async function AssignmentReportsView({
 
   const studentById = new Map((students ?? []).map((student) => [student.id, student]));
   let reportsForRows = reports ?? [];
-  let latestReportBySessionId = new Map(reportsForRows.map((report) => [report.session_id, report]));
+  let bestReportBySessionId = getBestReportBySessionId(reportsForRows);
 
   const staleOrMissingReportSessions = (sessions ?? []).filter(
-    (session) => session.status === "completed" && reportNeedsRegeneration(latestReportBySessionId.get(session.id) ?? null)
+    (session) => session.status === "completed" && reportNeedsRegeneration(bestReportBySessionId.get(session.id) ?? null)
   );
 
   if (staleOrMissingReportSessions.length > 0) {
@@ -145,7 +179,7 @@ export default async function AssignmentReportsView({
     if (refreshedReportsError) throw new Error(refreshedReportsError.message);
 
     reportsForRows = refreshedReports ?? [];
-    latestReportBySessionId = new Map(reportsForRows.map((report) => [report.session_id, report]));
+    bestReportBySessionId = getBestReportBySessionId(reportsForRows);
   }
 
   const messageCountBySessionId = new Map<string, number>();
@@ -157,7 +191,7 @@ export default async function AssignmentReportsView({
   const rows = (sessions ?? []).map((session) => {
     const submission = (submissions ?? []).find((item) => item.id === session.submission_id);
     const student = submission ? studentById.get(submission.student_id) : null;
-    const report = latestReportBySessionId.get(session.id) ?? null;
+    const report = bestReportBySessionId.get(session.id) ?? null;
 
     return {
       session,
@@ -210,7 +244,7 @@ export default async function AssignmentReportsView({
                       </div>
                       <p className="text-sm text-gray-500">{student?.email ?? "Student details unavailable"}</p>
                       <div className="flex flex-wrap gap-4 text-xs text-gray-400">
-                        <span>{submittedAt ? `Submitted ${new Date(submittedAt).toLocaleString()}` : "Submission pending"}</span>
+                        <span>{submittedAt ? `Submitted ${formatPacificDateTime(submittedAt)}` : "Submission pending"}</span>
                         <span>{messageCount} transcript messages</span>
                         <span>{getReportStatusLabel(session, Boolean(report))}</span>
                       </div>

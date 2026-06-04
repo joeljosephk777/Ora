@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatPacificDate, formatPacificDateTime } from "@/lib/formatDate";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -69,7 +70,7 @@ export default async function StudentSessionCompletePage({
           <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Completed</p>
             <p className="mt-2 text-sm font-medium text-slate-900">
-              {session.ended_at ? new Date(session.ended_at).toLocaleString() : "Just now"}
+              {session.ended_at ? formatPacificDateTime(session.ended_at) : "Just now"}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
@@ -78,7 +79,7 @@ export default async function StudentSessionCompletePage({
               {report?.final_score === null || report?.final_score === undefined ? "Pending review" : `${report.final_score}/100`}
             </p>
             {report?.reviewed_at && (
-              <p className="mt-1 text-xs text-slate-500">Reviewed {new Date(report.reviewed_at).toLocaleDateString()}</p>
+              <p className="mt-1 text-xs text-slate-500">Reviewed {formatPacificDate(report.reviewed_at)}</p>
             )}
           </div>
         </div>

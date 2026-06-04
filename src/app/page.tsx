@@ -1,6 +1,5 @@
 import { DM_Serif_Display } from "next/font/google";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 const serif = DM_Serif_Display({
   subsets: ["latin"],
@@ -60,7 +59,6 @@ export default function LandingPage() {
             <span className="hidden text-xs text-slate-400 sm:block dark:text-slate-500">for UW CS</span>
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <Link
               href="/login"
               className="flex items-center gap-2 rounded-full bg-blue-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-800 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"

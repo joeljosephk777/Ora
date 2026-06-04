@@ -251,11 +251,20 @@ function removePromptLeakage(reply: string) {
 function normalizeReplyText(reply: string) {
   return reply
     .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, " ")
-    .replace(/\b(What|Why|How|When|Where|Which)(?=(happens|is|are|does|do|would|will|should|can|could|part|line|case)\b)/gi, "$1 ")
     .replace(
-      /\b(your|their|this|that|the|a|an)(?=(answer|approach|base|case|code|complexity|explanation|function|implementation|method|reasoning|response|solution|tree)\b)/gi,
+      /\b(could|would|should|can|will|do|does|did|before|after|next|please)(?=(you|your|we|they|it|this|that|the|a|an|is|are|was|were|share|paste|explain|describe|walk|tell|show|identify|point|proceed|answer)\b)/gi,
       "$1 "
     )
+    .replace(
+      /\b(you|we|they|it|this|that|to|please)(?=(share|paste|explain|describe|walk|tell|show|identify|point|proceed|answer|clarify|connect|reference|use|add)\b)/gi,
+      "$1 "
+    )
+    .replace(/\b(What|Why|How|When|Where|Which)(?=(happens|is|are|does|do|would|will|should|can|could|part|line|case)\b)/gi, "$1 ")
+    .replace(
+      /\b(your|their|this|that|the|a|an)(?=(actual|answer|approach|array|base|case|code|complexity|explanation|function|implementation|method|reasoning|response|solution|sum|tree)\b)/gi,
+      "$1 "
+    )
+    .replace(/\b(array)(?=(sum|method|implementation|solution)\b)/gi, "$1 ")
     .replace(/\b(time|space|run)(?=(complexity|time)\b)/gi, "$1 ")
     .replace(/\b(best|average|worst|base)(?=case\b)/gi, "$1 ")
     .replace(/\s+([?.!,;:])/g, "$1")

@@ -37,14 +37,159 @@
 
 html.dark {
   background:
-    radial-gradient(circle at top left, rgba(30, 64, 175, 0.18), transparent 34%),
-    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 30%),
-    linear-gradient(180deg, #060c1a 0%, #0a1428 100%);
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(45, 212, 191, 0.1), transparent 30%),
+    linear-gradient(180deg, #172033 0%, #202938 100%);
 }
 
 html.dark body {
-  color: #f1f5f9;
+  color: #f8fafc;
   background:
-    radial-gradient(circle at 20% 0%, rgba(30, 64, 175, 0.2), transparent 28%),
-    linear-gradient(180deg, rgba(6, 12, 26, 0.97) 0%, rgba(10, 20, 40, 0.98) 100%);
+    radial-gradient(circle at 20% 0%, rgba(45, 212, 191, 0.1), transparent 28%),
+    linear-gradient(180deg, rgba(23, 32, 51, 0.96) 0%, rgba(32, 41, 56, 0.98) 100%);
+}
+
+@layer utilities {
+  html.dark .bg-white {
+    background-color: rgba(45, 58, 78, 0.9) !important;
+  }
+
+  html.dark .bg-white\/75 {
+    background-color: rgba(51, 65, 85, 0.74) !important;
+  }
+
+  html.dark .bg-white\/80 {
+    background-color: rgba(51, 65, 85, 0.8) !important;
+  }
+
+  html.dark .bg-white\/85 {
+    background-color: rgba(49, 63, 84, 0.86) !important;
+  }
+
+  html.dark .bg-white\/90 {
+    background-color: rgba(45, 58, 78, 0.9) !important;
+  }
+
+  html.dark .bg-white\/95 {
+    background-color: rgba(42, 55, 75, 0.94) !important;
+  }
+
+  html.dark .bg-gray-50,
+  html.dark .bg-slate-50 {
+    background-color: rgba(65, 80, 103, 0.86) !important;
+  }
+
+  html.dark .bg-slate-50\/75 {
+    background-color: rgba(68, 84, 108, 0.72) !important;
+  }
+
+  html.dark .bg-slate-50\/80 {
+    background-color: rgba(66, 82, 106, 0.78) !important;
+  }
+
+  html.dark .bg-slate-50\/85 {
+    background-color: rgba(62, 78, 101, 0.84) !important;
+  }
+
+  html.dark .bg-indigo-50,
+  html.dark .bg-blue-50,
+  html.dark .bg-sky-50 {
+    background-color: rgba(30, 64, 105, 0.58) !important;
+  }
+
+  html.dark .bg-emerald-50,
+  html.dark .bg-emerald-50\/90 {
+    background-color: rgba(22, 101, 74, 0.5) !important;
+  }
+
+  html.dark .bg-amber-50,
+  html.dark .bg-amber-50\/90 {
+    background-color: rgba(120, 83, 32, 0.52) !important;
+  }
+
+  html.dark .bg-red-50 {
+    background-color: rgba(127, 29, 29, 0.48) !important;
+  }
+
+  html.dark .bg-violet-50,
+  html.dark .bg-violet-50\/80 {
+    background-color: rgba(76, 54, 122, 0.48) !important;
+  }
+
+  html.dark .border-gray-200,
+  html.dark .border-slate-200,
+  html.dark .border-slate-200\/70,
+  html.dark .border-slate-200\/80 {
+    border-color: rgba(178, 193, 214, 0.32) !important;
+  }
+
+  html.dark .border-indigo-200,
+  html.dark .border-blue-200,
+  html.dark .border-sky-200,
+  html.dark .border-emerald-200,
+  html.dark .border-amber-200,
+  html.dark .border-red-200,
+  html.dark .border-violet-200 {
+    border-color: rgba(191, 219, 254, 0.3) !important;
+  }
+
+  html.dark .text-gray-900,
+  html.dark .text-slate-900,
+  html.dark .text-gray-800,
+  html.dark .text-slate-800 {
+    color: #f8fafc !important;
+  }
+
+  html.dark .text-gray-700,
+  html.dark .text-slate-700,
+  html.dark .text-gray-600,
+  html.dark .text-slate-600 {
+    color: #e2e8f0 !important;
+  }
+
+  html.dark .text-gray-500,
+  html.dark .text-slate-500,
+  html.dark .text-gray-400,
+  html.dark .text-slate-400 {
+    color: #cbd5e1 !important;
+  }
+
+  html.dark .text-indigo-600,
+  html.dark .text-indigo-700,
+  html.dark .text-indigo-800,
+  html.dark .text-blue-700,
+  html.dark .text-blue-800,
+  html.dark .text-sky-700,
+  html.dark .text-sky-800 {
+    color: #bfdbfe !important;
+  }
+
+  html.dark .text-emerald-700,
+  html.dark .text-emerald-800,
+  html.dark .text-emerald-900 {
+    color: #bbf7d0 !important;
+  }
+
+  html.dark .text-amber-700,
+  html.dark .text-amber-800 {
+    color: #fde68a !important;
+  }
+
+  html.dark .text-red-600,
+  html.dark .text-red-700 {
+    color: #fecaca !important;
+  }
+
+  html.dark .text-violet-700,
+  html.dark .text-violet-800 {
+    color: #ddd6fe !important;
+  }
+
+  html.dark input,
+  html.dark textarea,
+  html.dark select {
+    background-color: rgba(38, 50, 68, 0.92);
+    border-color: rgba(178, 193, 214, 0.38);
+    color: #f8fafc;
+  }
 }
