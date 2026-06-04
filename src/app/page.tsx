@@ -99,11 +99,17 @@ export default function LandingPage() {
               href="/login"
               className="rounded-full bg-blue-700 px-7 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-800 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"
             >
-              Get started with UW Google
+              Sign-In
             </Link>
             <a
               href="#how-it-works"
               className="rounded-full border border-slate-200 bg-white/80 px-7 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
+            >
+              Jump to User Guide ↓
+            </a>
+            <a
+              href="#infrastructure"
+              className="rounded-full border border-blue-200 bg-blue-50/80 px-7 py-3 text-sm font-medium text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:border-blue-700 dark:hover:bg-blue-950"
             >
               See how it works ↓
             </a>
@@ -212,20 +218,10 @@ export default function LandingPage() {
         {/* Privacy + tech */}
         <section className="mx-auto max-w-5xl px-6 pb-16">
           <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200/60 bg-white/75 p-7 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70">
-              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-                <svg className="h-4 w-4 text-slate-700 dark:text-slate-300" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 1L2 4v4c0 3.31 2.42 6.41 6 7 3.58-.59 6-3.69 6-7V4L8 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Privacy-first by design</h4>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-                Transcripts are used only for grading — never to train AI models or shared
-                outside your course. Authentication is UW Google only.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200/60 bg-white/75 p-7 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70">
+            <div
+              id="infrastructure"
+              className="scroll-mt-24 rounded-2xl border border-slate-200/60 bg-white/75 p-7 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 md:col-span-2"
+            >
               <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
                 <svg className="h-4 w-4 text-slate-700 dark:text-slate-300" viewBox="0 0 16 16" fill="none">
                   <path d="M2 4h12M2 8h8M2 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -234,7 +230,107 @@ export default function LandingPage() {
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Built on proven infrastructure</h4>
               <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 Next.js · TypeScript · Supabase (Postgres + RLS + Auth) · OpenRouter AI ·
-                ElevenLabs voice transcription. Row-level security keeps every student&apos;s data isolated.
+                ElevenLabs voice transcription.
+                <br />
+                Row-level security keeps every student&apos;s data isolated.
+              </p>
+
+              <div className="mt-6 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-5 dark:border-slate-700/70 dark:bg-slate-800/60">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    High-level architecture
+                  </p>
+                  <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-white">Students + Professors</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        UW Google sign-in, assignment setup, interviews, and reports.
+                      </p>
+                    </div>
+                    <span className="hidden text-slate-400 sm:block">→</span>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-white">Next.js App Router</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        Server actions, API routes, streaming chat UI, and report views.
+                      </p>
+                    </div>
+                    <span className="hidden text-slate-400 sm:block">→</span>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="font-semibold text-slate-900 dark:text-white">Supabase + AI APIs</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        Postgres/RLS persistence with OpenRouter interviews and ElevenLabs transcription.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-5 dark:border-slate-700/70 dark:bg-slate-800/60">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Runtime flow
+                  </p>
+                  <ol className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                    <li>
+                      <span className="font-semibold text-slate-900 dark:text-white">1. Assignment context:</span> professors define the brief,
+                      rubric, and guiding questions.
+                    </li>
+                    <li>
+                      <span className="font-semibold text-slate-900 dark:text-white">2. Interview stream:</span> Ora grounds each response in
+                      session messages, submitted code, and professor questions.
+                    </li>
+                    <li>
+                      <span className="font-semibold text-slate-900 dark:text-white">3. Review report:</span> completed sessions generate rubric
+                      evidence for instructor review.
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-5 dark:border-blue-900/50 dark:bg-blue-950/30">
+                <p className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">
+                  Ora chat pipeline
+                </p>
+                <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-stretch">
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-slate-900">
+                    <p className="font-semibold text-slate-900 dark:text-white">1. Student message</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      The chat UI captures typed code, text, or voice notes and shows an immediate pending Ora response.
+                    </p>
+                  </div>
+                  <span className="hidden self-center text-blue-300 md:block">→</span>
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-slate-900">
+                    <p className="font-semibold text-slate-900 dark:text-white">2. API context build</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px] dark:bg-slate-800">/api/chat</code> saves the turn and loads prior messages, code, rubric, and guiding questions.
+                    </p>
+                  </div>
+                  <span className="hidden self-center text-blue-300 md:block">→</span>
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-slate-900">
+                    <p className="font-semibold text-slate-900 dark:text-white">3. LLM stream</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      The OpenRouter gateway streams one focused Ora question back while backend guards repair empty or cut-off replies.
+                    </p>
+                  </div>
+                  <span className="hidden self-center text-blue-300 md:block">→</span>
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-slate-900">
+                    <p className="font-semibold text-slate-900 dark:text-white">4. Persist + review</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      Final Ora text is normalized, saved to Supabase, and later used as evidence in the instructor report.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mx-auto max-w-xl rounded-2xl border border-slate-200/60 bg-white/75 p-7 text-center backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 md:col-span-2">
+              <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                <svg className="h-4 w-4 text-slate-700 dark:text-slate-300" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1L2 4v4c0 3.31 2.42 6.41 6 7 3.58-.59 6-3.69 6-7V4L8 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Privacy-first by design</h4>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                Transcripts are used only for grading — never to train AI models or shared
+                outside your course. Authentication is UW Google only.
               </p>
             </div>
           </div>
