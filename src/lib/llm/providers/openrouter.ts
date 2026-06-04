@@ -1,6 +1,6 @@
 import type { ChatMessage, LLMOptions } from "@/lib/llm/gateway";
 
-const defaultModel = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+const defaultModel = "google/gemini-2.5-flash-lite";
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 
 type OpenRouterChunk = {

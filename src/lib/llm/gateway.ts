@@ -19,7 +19,7 @@ function getProvider() {
 export function getLLMModel(options?: LLMOptions) {
   switch (getProvider()) {
     case "openrouter":
-      return options?.model ?? process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+      return options?.model ?? process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash-lite";
     default:
       throw new Error(`Unsupported LLM provider: ${getProvider()}`);
   }
