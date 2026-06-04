@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { isCompletionReply } from "@/lib/interviewCompletion";
 import { useEffect, useRef, useState } from "react";
 
@@ -275,7 +274,6 @@ export default function StudentSessionChat({
   initialMessages,
   completeAction,
 }: Props) {
-  const [supabase] = useState(() => createClient());
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState(initialStatus);
   const [interviewComplete, setInterviewComplete] = useState(
@@ -371,21 +369,6 @@ export default function StudentSessionChat({
     };
   }, []);
 
-  async function markSessionInProgress() {
-    if (status !== "pending") return;
-
-    const startedAt = new Date().toISOString();
-    const { error: updateError } = await supabase
-      .from("sessions")
-      .update({
-        status: "in_progress",
-        started_at: startedAt,
-      })
-      .eq("id", sessionId);
-
-    if (!updateError) setStatus("in_progress");
-  }
-
   async function transcribeRecording(attachment: RecordingAttachment) {
     const formData = new FormData();
     formData.append("file", attachment.file, attachment.file.name);
@@ -466,7 +449,7 @@ export default function StudentSessionChat({
     let transcribedMessage = nextPayload.transcribedMessage;
 
     try {
-      await markSessionInProgress();
+      if (status === "pending") setStatus("in_progress");
 
       if (!transcribedMessage && nextPayload.recording) {
         transcribedMessage = await transcribeRecording(nextPayload.recording);
@@ -561,6 +544,20 @@ export default function StudentSessionChat({
                         content: aiMessage,
                       }
                   : message
+                )
+              );
+            }
+
+            if (typeof parsedFrame.payload.replace === "string") {
+              aiMessage = parsedFrame.payload.replace;
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === aiMessageId
+                    ? {
+                        ...message,
+                        content: aiMessage,
+                      }
+                    : message
                 )
               );
             }
@@ -783,7 +780,6 @@ export default function StudentSessionChat({
   const canSend = !isSending && status !== "completed" && !interviewComplete && Boolean(draft.trim() || recording);
   const statusMeta = getStatusMeta(status, interviewComplete);
   const messageCount = messages.filter((message) => !message.pending).length;
-  const hasPendingAiMessage = messages.some((message) => message.role === "ai" && message.pending);
   const usagePercent = getUsagePercent(elevenLabsUsage);
   const resetLabel = getResetLabel(elevenLabsUsage?.nextResetUnix ?? null);
   const refreshPeriodLabel = getRefreshPeriodLabel(elevenLabsUsage?.refreshPeriod ?? null);
@@ -968,16 +964,6 @@ export default function StudentSessionChat({
               );
             })}
 
-            {isSending && !hasPendingAiMessage && (
-              <div className="flex justify-start">
-                <div className="w-full max-w-xl rounded-[1.75rem] border border-slate-200/80 bg-white/95 px-5 py-4 text-slate-900 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.35)]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Ora</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    Ora is responding and will follow up with one focused question.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
