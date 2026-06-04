@@ -34,3 +34,17 @@
     background: rgba(59, 130, 246, 0.2);
   }
 }
+
+html.dark {
+  background:
+    radial-gradient(circle at top left, rgba(30, 64, 175, 0.18), transparent 34%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 30%),
+    linear-gradient(180deg, #060c1a 0%, #0a1428 100%);
+}
+
+html.dark body {
+  color: #f1f5f9;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(30, 64, 175, 0.2), transparent 28%),
+    linear-gradient(180deg, rgba(6, 12, 26, 0.97) 0%, rgba(10, 20, 40, 0.98) 100%);
+}
