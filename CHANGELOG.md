@@ -16,6 +16,7 @@ Track what each person ships. Add a line when you merge something.
 
 ## 2026-06-03
 
+- **Neil** - Added UW Google OAuth sign-in, first-login role selection, UW domain gating, and optional professor email allowlist
 - **Neil** - Switched AI calls to the OpenRouter gateway/env setup and removed the need for Anthropic credentials
 - **Neil** - Made Ora ask the first interview question automatically after code submission
 - **Neil** - Limited interview progression to the professor's guiding questions, then unlocks student submission only after Ora completes the interview
