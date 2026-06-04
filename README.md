@@ -22,14 +22,14 @@ Ora is a web app that gives UW CS instructors a scalable way to verify student c
 
 ### Phase 1 — Professor Setup
 
-1. Log in to Ora
+1. Sign in with a UW Google account
 2. Upload the assignment description and/or starter code
 3. Provide a grading rubric
 4. Add guiding questions you want the AI to ask students
 
 ### Phase 2 — Student Comprehension Check
 
-1. Student receives a link and logs in
+1. Student receives a link and signs in with a UW Google account
 2. Student submits their code
 3. Ora automatically asks the first interview question
 4. The student answers one focused question at a time, using text, pasted code, or voice notes
@@ -47,7 +47,5 @@ Ora is a web app that gives UW CS instructors a scalable way to verify student c
 ## Privacy
 
 Transcripts and recordings are used solely for grading purposes. They are **not** used to train AI models or for any other purpose.
-
----
 
 *Ora is built for the UW CS community.*

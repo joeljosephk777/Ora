@@ -27,24 +27,36 @@ Fill in `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=      # Settings → API → Project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY= # Settings → API → anon/public key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+UW_AUTH_DOMAINS=uw.edu,u.washington.edu
+PROFESSOR_EMAIL_ALLOWLIST=     # optional comma-separated UW professor emails
 OPENROUTER_API_KEY=            # openrouter.ai
 OPENROUTER_MODEL=              # optional; defaults to nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 LLM_PROVIDER=openrouter        # optional; defaults to openrouter
 ELEVENLABS_API_KEY=            # elevenlabs.io, used by /api/transcribe and usage telemetry
 ```
 
-### 3. Run the database migration
+### 3. Configure Google auth
+1. In Google Cloud Console, create an OAuth client for a web app
+2. Add your Supabase callback URL as an authorized redirect URI:
+   `https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback`
+3. In Supabase Auth -> Providers -> Google, enable Google and paste the Google client ID/secret
+4. In Supabase Auth -> URL Configuration, add redirect URLs:
+   - `http://localhost:3000/auth/callback`
+   - your production `/auth/callback` URL when deployed
+
+Ora sends Google the `hd=uw.edu` hint, but that is only a sign-in hint. The app still blocks non-UW accounts in `/auth/callback` and middleware using `UW_AUTH_DOMAINS`.
+
+### 4. Run the database migration
 1. Go to your Supabase project → **SQL Editor**
 2. Paste the contents of `supabase/migrations/001_initial_schema.sql` and run it
 3. This creates all tables, enums, RLS policies, and the auto-profile trigger
 
-### 4. Start the dev server
+### 5. Start the dev server
 ```bash
 npm run dev
 ```
 App runs at [http://localhost:3000](http://localhost:3000)
-
----
 
 ## Tech Stack
 
@@ -167,7 +179,9 @@ The project is split into three independent tracks. Each person works on their o
 
 Build the foundation that Garv and Neil's work depends on.
 
-- Login / signup pages with role selection (professor or student)
+- Google-only UW sign-in through Supabase OAuth
+- Post-login role selection (student or professor)
+- Professor access allowlist through `PROFESSOR_EMAIL_ALLOWLIST`
 - Auth middleware to protect routes
 - Professor dashboard (`/professor/dashboard`)
 - Assignment creation form (`/professor/assignments/new`) — title, description, rubric, guiding questions
@@ -177,6 +191,10 @@ Build the foundation that Garv and Neil's work depends on.
 ```
 src/app/(auth)/login/page.tsx
 src/app/(auth)/signup/page.tsx
+src/app/(auth)/role/page.tsx
+src/app/auth/callback/route.ts
+src/components/RoleSelectionForm.tsx
+src/lib/auth/rules.ts
 src/app/(professor)/professor/dashboard/page.tsx
 src/app/(professor)/professor/assignments/new/page.tsx
 src/app/(professor)/professor/assignments/[id]/page.tsx
