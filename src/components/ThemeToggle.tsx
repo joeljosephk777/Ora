@@ -24,24 +24,25 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle dark mode"
-      className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-200"
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
     >
       {dark ? (
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4" />
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
           <path
-            d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
+            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
             stroke="currentColor"
-            strokeWidth="1.4"
+            strokeWidth="2"
             strokeLinecap="round"
           />
         </svg>
       ) : (
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
-            d="M13.5 9.5A6 6 0 016.5 2.5a6 6 0 100 11 6 6 0 007-4z"
+            d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"
             stroke="currentColor"
-            strokeWidth="1.4"
+            strokeWidth="2"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
         </svg>
