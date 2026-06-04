@@ -69,8 +69,8 @@ export async function proxy(request: NextRequest) {
   }
 
   if (path === "/") {
-    if (!user) return NextResponse.redirect(new URL("/login", request.url));
-    return NextResponse.redirect(new URL(homePath, request.url));
+    if (user) return NextResponse.redirect(new URL(homePath, request.url));
+    return supabaseResponse;
   }
 
   return supabaseResponse;
